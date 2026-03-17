@@ -1,0 +1,25 @@
+## Interface: 30300
+## Title: MekTown Recruit
+## Notes: MekTown Recruit Guild Suite v2.0.0-beta - Area 52 Ascension
+## Author: MekTown Choppaz
+## Version: 2.0.0-beta
+## SavedVariables: MekTownRecruitDB
+
+Core.lua
+DKP.lua
+Auction.lua
+Roll.lua
+Attendance.lua
+Inactivity.lua
+Recruit.lua
+LootDetect.lua
+GuildAds.lua
+GuildTree.lua
+GroupRadar.lua
+CharVault.lua
+UI_Widgets.lua
+UI_Config.lua
+UI_Member.lua
+UI_CharVault.lua
+Minimap.lua
+Commands.lua
