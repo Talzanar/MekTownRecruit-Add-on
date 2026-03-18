@@ -1300,6 +1300,17 @@ local _tabBuilt    = {}
 -- ============================================================================
 -- WINDOW
 -- ============================================================================
+function MTR.OpenCharVaultToTab(tabName)
+    if not vaultWin then
+        MTR.OpenCharVault()
+    else
+        if not vaultWin:IsShown() then vaultWin:Show() end
+    end
+    if vaultWin and vaultWin._showTab then
+        vaultWin._showTab(tabName or "Overview")
+    end
+end
+
 function MTR.OpenCharVault()
     if not vaultWin then
         vaultWin=CreateFrame("Frame","MekTownVaultWindow",UIParent)
@@ -1439,6 +1450,6 @@ function MTR.OpenCharVault()
     end
 
     if vaultWin:IsShown() then vaultWin:Hide() return end
-    vaultWin._showTab("Overview")
     vaultWin:Show()
+    vaultWin._showTab("Overview")
 end

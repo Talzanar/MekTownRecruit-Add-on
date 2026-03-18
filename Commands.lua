@@ -197,7 +197,7 @@ SlashCmdList["MEKTOWN"]=function(msg)
             MTR.DKPPublish(chan~="" and chan:upper() or nil,target~="" and target or nil)
         elseif sub=="sync" then MTR.DKPSyncToRaid()
         elseif sub=="snapshot" then
-            if not MTR.isOfficer then MTR.MPE("Officers only.") return end
+            if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
             if MTR.DKPSendFullSnapshot then MTR.DKPSendFullSnapshot("manual") end
         else MTR.MP("/mek dkp [award|deduct|set|balance|standings|publish|sync|snapshot]") end
 
@@ -232,9 +232,14 @@ SlashCmdList["MEKTOWN"]=function(msg)
     elseif cmd=="att" then
         local sub,rest=args:match("^(%S+)%s*(.*)")
         sub=(sub or ""):lower()
-        if sub=="start"      then MTR.AttSnapshot(rest~="" and rest or nil)
-        elseif sub=="end"    then MTR.AttEnd()
+        if sub=="start" then
+            if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
+            MTR.AttSnapshot(rest~="" and rest or nil)
+        elseif sub=="end" then
+            if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
+            MTR.AttEnd()
         elseif sub=="boss"   then
+            if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
             if rest=="" then MTR.MPE("/mek att boss <n>") return end
             MTR.AttBossKill(rest)
         elseif sub=="check"  then
@@ -264,6 +269,9 @@ SlashCmdList["MEKTOWN"]=function(msg)
     elseif cmd=="gads" then
         local sub = args:lower():match("^%s*(.-)%s*$")
         if not MTR.GuildAds then MTR.MPE("GuildAds module not loaded.") return end
+        if sub=="start" or sub=="stop" or sub=="now" then
+            if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Guild Ads are officer-only.") return end
+        end
         if sub=="start" then
             MTR.GuildAds.Start()
         elseif sub=="stop" then
@@ -282,7 +290,7 @@ SlashCmdList["MEKTOWN"]=function(msg)
         sub=(sub or ""):lower()
         if sub=="scan" then MTR.InactRunScan(false)
         elseif sub=="kick" then
-            if not MTR.isOfficer then MTR.MPE("Officers and above can use the kick tool.") return end
+            if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers and above can use the kick tool.") return end
             MTR.InactRunScan(true)
         elseif sub=="debug" then MTR.InactDebugDump()
         elseif sub=="whitelist" then
@@ -295,7 +303,7 @@ SlashCmdList["MEKTOWN"]=function(msg)
         else MTR.MP("/mek inactive [scan|kick|debug|whitelist add/remove <n>]") end
 
     elseif cmd=="motd" then
-        if not MTR.isOfficer then MTR.MPE("Officers only.") return end
+        if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
         if args=="" then
             local keys={} for k in pairs(MTR.db.motdTemplates) do keys[#keys+1]=k end
             MTR.MP("MOTD templates: "..table.concat(keys,", "))

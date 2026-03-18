@@ -57,6 +57,27 @@ GR.patterns = {
 -- ============================================================================
 -- DEFAULT CONFIG
 -- ============================================================================
+GR.memberRecommendedConfig = {
+    alertLfmDps       = true,
+    alertLfmTank      = true,
+    alertLfmHeal      = true,
+    textAlertLfmDps   = true,
+    textAlertLfmTank  = true,
+    textAlertLfmHeal  = true,
+    alertMsGold       = false,
+    alertMsLeveling   = false,
+    alertBc           = false,
+    textAlertMsGold   = false,
+    textAlertMsLeveling = false,
+    textAlertBc       = false,
+    doNotAlertInGroup = false,
+    doNotAlertInCombat = false,
+    dontAlertInInstance = false,
+    silentNotifications = false,
+    messageMustContain = "",
+    messageMustNotContain = "recruit,lfg,>,http,wtb,wts,anal,sell,carry,need to,looking to join a group",
+}
+
 GR.defaultConfig = {
     -- Text alerts (chat line) — ALL false. Nothing printed to chat until opted in.
     textAlertMsLeveling   = false,
@@ -251,9 +272,9 @@ local function ShowLFMTextAlert(sender, message)
 end
 
 -- ============================================================================
--- POPUP ALERT  (WA Section 7 — ShowLFMAlert, custom frame not StaticPopup)
+-- GROUP RADAR POPUP ALERT  (distinct from Recruit popup)
 -- ============================================================================
-local function ShowLFMAlert(sender, message)
+local function ShowLFMAlert(sender, message, categoryText)
     local cfg = Cfg()
     if cfg.doNotAlertInCombat  and UnitAffectingCombat("player") then return end
     if cfg.doNotAlertInGroup   and IsInGroup()                   then return end
@@ -266,55 +287,100 @@ local function ShowLFMAlert(sender, message)
     GR.lastDisplayedFrame = GetTime()
 
     local f = CreateFrame("Frame", nil, UIParent)
-    f:SetSize(310, 140)
+    f:SetSize(330, 164)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 240)
     f:SetBackdrop({
         bgFile="",
-        edgeFile="Interface\\\\DialogFrame\\\\UI-DialogBox-Border",
+        edgeFile="Interface\\DialogFrame\\UI-DialogBox-Border",
         tile=false,tileSize=0,edgeSize=32,insets={left=8,right=8,top=8,bottom=8},
     })
     f:SetBackdropColor(0,0,0,0)
-    do local _bt=f:CreateTexture(nil,"BACKGROUND")
-    _bt:SetTexture("Interface\\Buttons\\WHITE8x8") _bt:SetAllPoints(f) _bt:SetVertexColor(0.04,0.01,0.01,0.97) end
-    f:SetFrameStrata("DIALOG") f:EnableMouse(true) f:SetMovable(true)
+    do
+        local _bt=f:CreateTexture(nil,"BACKGROUND")
+        _bt:SetTexture("Interface\Buttons\WHITE8x8")
+        _bt:SetAllPoints(f)
+        _bt:SetVertexColor(0.02,0.03,0.05,0.97)
+    end
+    f:SetFrameStrata("DIALOG")
+    f:EnableMouse(true)
+    f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart",f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
 
+    local titleBar=f:CreateTexture(nil,"OVERLAY")
+    titleBar:SetTexture("Interface\DialogFrame\UI-DialogBox-Header")
+    titleBar:SetTexCoord(0,1,0.2,0.8)
+    titleBar:SetVertexColor(0.05,0.30,0.55,1.0)
+    titleBar:SetHeight(26)
+    titleBar:SetPoint("TOPLEFT",f,"TOPLEFT",9,-2)
+    titleBar:SetPoint("TOPRIGHT",f,"TOPRIGHT",-9,-2)
+
+    local titleEdge=f:CreateTexture(nil,"OVERLAY")
+    titleEdge:SetTexture("Interface\Buttons\WHITE8x8")
+    titleEdge:SetVertexColor(0.30,0.75,1.0,1.0)
+    titleEdge:SetHeight(2)
+    titleEdge:SetPoint("TOPLEFT",f,"TOPLEFT",9,-26)
+    titleEdge:SetPoint("TOPRIGHT",f,"TOPRIGHT",-9,-26)
+
+    local tag = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    tag:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -7)
+    tag:SetText("|cff66ccffMekTown|r |cffd4af37Group Radar|r")
+
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+
     local hdr=f:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-    hdr:SetPoint("TOP",f,"TOP",0,-10) hdr:SetText("|cffffff00"..sender.."|r")
+    hdr:SetPoint("TOP",f,"TOP",0,-12)
+    hdr:SetText("|cff66ccff"..sender.."|r")
+
+    local catFS=f:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    catFS:SetPoint("TOP",hdr,"BOTTOM",0,-4)
+    catFS:SetText((categoryText and categoryText ~= "" and categoryText) or "|cffaaaaaaLFG match|r")
 
     local sep=f:CreateTexture(nil,"ARTWORK")
-    sep:SetColorTexture(1,1,1,0.4) sep:SetSize(280,1)
-    sep:SetPoint("TOP",hdr,"BOTTOM",0,-5)
+    sep:SetColorTexture(0.50,0.75,1.0,0.45)
+    sep:SetSize(298,1)
+    sep:SetPoint("TOP",catFS,"BOTTOM",0,-5)
 
     local msgFS=f:CreateFontString(nil,"OVERLAY","GameFontNormal")
-    msgFS:SetPoint("TOP",sep,"BOTTOM",0,-5) msgFS:SetWidth(295) msgFS:SetWordWrap(true)
-    msgFS:SetText(MTR.Trunc(message,150))
+    msgFS:SetPoint("TOPLEFT",f,"TOPLEFT",16,-64)
+    msgFS:SetPoint("TOPRIGHT",f,"TOPRIGHT",-16,-64)
+    msgFS:SetWordWrap(true)
+    msgFS:SetJustifyH("LEFT")
+    msgFS:SetText("|cffd8ecff"..MTR.Trunc(message,170).."|r")
 
-    local acceptBtn=CreateFrame("Button",nil,f,"UIPanelButtonTemplate")
-    acceptBtn:SetSize(100,28) acceptBtn:SetPoint("BOTTOMLEFT",f,"BOTTOMLEFT",8,8)
-    acceptBtn:SetText("|cff00ff00Apply|r")
-    acceptBtn:SetScript("OnClick",function()
+    local applyBtn=CreateFrame("Button",nil,f,"UIPanelButtonTemplate")
+    applyBtn:SetSize(134,28)
+    applyBtn:SetPoint("BOTTOMLEFT",f,"BOTTOMLEFT",12,10)
+    applyBtn:SetText("|cff00ff00Send Apply Msg|r")
+    applyBtn:SetScript("OnClick",function()
         local msg=BuildInviteMsg()
         MTR.SendChatSafe(msg, "WHISPER", nil, sender)
-        MTR.MP("|cffffcc00[GroupRadar]|r Applied to "..sender.." — "..msg)
+        MTR.MP("|cff66ccff[GroupRadar]|r Whispered "..sender.." — "..msg)
         f:Hide()
     end)
 
-    local decBtn=CreateFrame("Button",nil,f,"UIPanelButtonTemplate")
-    decBtn:SetSize(100,28) decBtn:SetPoint("BOTTOMRIGHT",f,"BOTTOMRIGHT",-8,8)
-    decBtn:SetText("Decline")
-    decBtn:SetScript("OnClick",function()
-        GR.ignoreList[sender]=GetTime() f:Hide()
+    local ignoreBtn=CreateFrame("Button",nil,f,"UIPanelButtonTemplate")
+    ignoreBtn:SetSize(134,28)
+    ignoreBtn:SetPoint("BOTTOMRIGHT",f,"BOTTOMRIGHT",-12,10)
+    ignoreBtn:SetText("Ignore")
+    ignoreBtn:SetScript("OnClick",function()
+        GR.ignoreList[sender]=GetTime()
+        f:Hide()
     end)
 
-    f:Show() PlaySound(8960)
+    f:Show()
+    PlaySound(8960)
 
     local elapsed=0
     f:SetScript("OnUpdate",function(self,dt)
         elapsed=elapsed+dt
-        if elapsed>=dur then self:SetScript("OnUpdate",nil) self:Hide() end
+        if elapsed>=dur then
+            self:SetScript("OnUpdate",nil)
+            self:Hide()
+        end
     end)
 end
 
@@ -431,7 +497,7 @@ local function HandleChatMessage(event, message, sender)
         (cfg.alertLfmDps  and matchesLfmDps  and not(msMsLeveling or matchesMsGold)) or
         (cfg.alertLfmTank and matchesLfmTank and not(msMsLeveling or matchesMsGold)) or
         (cfg.alertLfmHeal and matchesLfmHeal and not(msMsLeveling or matchesMsGold))
-    if popOk then ShowLFMAlert(sender,message) end
+    if popOk then ShowLFMAlert(sender,message,catStr) end
 end
 
 -- ============================================================================
@@ -622,6 +688,7 @@ function GR.ShowDetailFrame()
     if not GR.detailFrame then
         local f=CreateFrame("Frame","MekTownGRDetailFrame",UIParent)
         f:SetSize(620,440) f:SetPoint("CENTER",0,-40)
+        f:SetToplevel(true)
         f:SetBackdrop({bgFile="",
             edgeFile="Interface\\\\DialogFrame\\\\UI-DialogBox-Border",
             tile=false,tileSize=0,edgeSize=32,insets={left=8,right=8,top=8,bottom=8}})
@@ -1005,11 +1072,35 @@ end
 -- ============================================================================
 function MTR.OpenGroupRadar()
     GR.CreateMinimapButton()
-    GR.ShowDetailFrame()
+    if not GR.detailFrame then
+        GR.ShowDetailFrame()
+    else
+        if not GR.detailFrame:IsShown() then GR.detailFrame:Show() end
+        GR.currentSearchGroup = GR.activeSearches
+        GR.currentTabLabel    = "All"
+        CreateDetailTabs(GR.detailFrame)
+        GR.UpdateDetailFrame()
+        MTR.TickAdd("gr_detail", 1, function()
+            if not GR.detailFrame or not GR.detailFrame:IsShown() then
+                MTR.TickRemove("gr_detail") return
+            end
+            GR.UpdateDetailFrame()
+        end)
+    end
+    if GR.detailFrame then
+        GR.detailFrame:Raise()
+        GR.detailFrame:SetFrameStrata("DIALOG")
+    end
 end
 
 function MTR.OpenFindGroup()
-    GR.ShowFindGroupFrame()
+    if not GR.findFrame then
+        GR.ShowFindGroupFrame()
+    else
+        if not GR.findFrame:IsShown() then GR.findFrame:Show() end
+        GR.findFrame:Raise()
+        GR.findFrame:SetFrameStrata("DIALOG")
+    end
     if GR.lfgActive and not GR.minimapLFGBtn then GR.CreateLFGMinimapButton() end
 end
 

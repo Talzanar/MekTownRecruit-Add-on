@@ -258,11 +258,18 @@ local function RollShowFrame()
     rollFrame:Show()
 end
 
+function MTR.ShowRollFrame()
+    if not MTR.activeRoll then
+        if MTR.MPE then MTR.MPE("No active roll right now.") end
+        return
+    end
+    RollShowFrame()
+end
+
 -- ============================================================================
 -- PUBLIC ENTRY POINT
 -- ============================================================================
 function MTR.RollOpen(itemName, rollType, timeSecs, useRW)
-    if not MTR.isOfficer then MTR.MPE("Officers only.") return end
 
     -- If there's already an active roll, cancel it silently and start fresh
     if MTR.activeRoll then

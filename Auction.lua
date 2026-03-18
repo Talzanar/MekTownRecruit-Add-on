@@ -243,7 +243,7 @@ end
 -- PUBLIC ENTRY POINT
 -- ============================================================================
 function MTR.AuctionOpen(itemName, minBid, timeSecs, useRW)
-    if not MTR.isOfficer then MTR.MPE("Officers only.") return end
+    if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
     if MTR.activeBid then MTR.MPE("Auction already active: "..MTR.activeBid.item) return end
 
     local displayName  = MTR.ItemLinkToName(itemName)

@@ -233,6 +233,16 @@ MTR.DEFAULTS = {
 
     -- Permissions
     permissionOfficerRanks = {},
+    permissionFeatureAccess = {
+        ["Vault"] = true,
+        ["Recruit"] = true,
+        ["Guild"] = true,
+        ["DKP"] = true,
+        ["Loot"] = true,
+        ["Standings"] = true,
+        ["Inactive"] = true,
+        ["Group Radar"] = true,
+    },
 
     -- Inactivity
     inactivityEnabled     = true,
@@ -711,14 +721,86 @@ end
 function MTR.CheckIsOfficer()
     if not IsInGuild() then return false end
     if MTR.isGM then return true end
-    local num = GetNumGuildMembers()
+    local num = GetNumGuildMembers() or 0
     for i = 1, num do
-        local n, rankName = GetGuildRosterInfo(i)
+        local n, rankName, rankIndex = GetGuildRosterInfo(i)
         if n == MTR.playerName then
-            return MTR.IsConfiguredOfficerRank(rankName)
+            if tonumber(rankIndex) == 1 then return true end
+            local nameKey = NormalizeRankName(rankName)
+            if nameKey:find("OFFIC", 1, true) or nameKey:find("ADMIN", 1, true) or nameKey:find("LEAD", 1, true) or nameKey:find("CO%-GM") or nameKey:find("COGM", 1, true) then
+                return true
+            end
+            return false
         end
     end
     return false
+end
+
+
+function MTR.GetPlayerRankName()
+    if not IsInGuild() then return nil end
+    local num = GetNumGuildMembers() or 0
+    for i = 1, num do
+        local n, rankName = GetGuildRosterInfo(i)
+        if n == MTR.playerName then
+            return rankName
+        end
+    end
+    return nil
+end
+
+local FEATURE_RANK_RESTRICTED = {
+    ["Recruit"] = true,
+    ["DKP"] = true,
+    ["Inactive"] = true,
+}
+
+local FEATURE_OFFICER_ONLY = {
+    ["Guild"] = true,
+}
+
+function MTR.GetFeatureAccessForRank(featureName, rankName)
+    if not FEATURE_RANK_RESTRICTED[featureName] then
+        return true
+    end
+    local key = NormalizeRankName(rankName)
+    if key == "" then return false end
+    local db = MTR.db
+    local map = db and db.permissionFeatureAccess
+    local featureMap = type(map) == "table" and map[featureName] or nil
+    if type(featureMap) == "table" and featureMap[key] ~= nil then
+        return featureMap[key] == true
+    end
+    return MTR.IsConfiguredOfficerRank(rankName)
+end
+
+function MTR.SetFeatureAccessForRank(featureName, rankName, isAllowed)
+    if not MTR.db or not FEATURE_RANK_RESTRICTED[featureName] then return false end
+    local key = NormalizeRankName(rankName)
+    if key == "" then return false end
+    MTR.db.permissionFeatureAccess = MTR.db.permissionFeatureAccess or {}
+    MTR.db.permissionFeatureAccess[featureName] = MTR.db.permissionFeatureAccess[featureName] or {}
+    MTR.db.permissionFeatureAccess[featureName][key] = (isAllowed and true or false)
+    return true
+end
+
+function MTR.IsGuildToolAccess()
+    return (MTR.isOfficer == true or MTR.isGM == true)
+end
+
+function MTR.GetFeatureAccess(featureName)
+    if featureName == "Recruit" or featureName == "DKP" or featureName == "Inactive" or featureName == "Loot" or featureName == "GuildAds" then
+        return MTR.IsGuildToolAccess()
+    end
+    return true
+end
+
+function MTR.SetFeatureAccess(featureName, isAllowed)
+    return false
+end
+
+function MTR.CanAccess(featureName)
+    return MTR.GetFeatureAccess(featureName)
 end
 
 function MTR.CanInvite()

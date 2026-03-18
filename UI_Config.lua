@@ -134,6 +134,7 @@ local function CreateMainWindow()
         local f = CreateFrame("Frame", nil, mainWin)
         f:SetPoint("TOPLEFT",     mainWin, "TOPLEFT",    10, TAB_Y - 26)
         f:SetPoint("BOTTOMRIGHT", mainWin, "BOTTOMRIGHT", -10, 10)
+        if f.SetClipsChildren then f:SetClipsChildren(true) end
         f:Hide()
         tabFrames[tname] = f
 
@@ -160,11 +161,20 @@ local function CreateMainWindow()
     local profileFrame = CreateFrame("Frame", nil, mainWin)
     profileFrame:SetPoint("TOPLEFT",     mainWin, "TOPLEFT",    10, TAB_Y - 26)
     profileFrame:SetPoint("BOTTOMRIGHT", mainWin, "BOTTOMRIGHT", -10, 10)
+    if profileFrame.SetClipsChildren then profileFrame:SetClipsChildren(true) end
     profileFrame:Hide()
     tabFrames["Profile"] = profileFrame
 
     mainWin._tabFrames = tabFrames
     mainWin._tabBtns   = tabBtns
+
+    local function UpdateTabAccess()
+        for _, btn in ipairs(tabBtns) do
+            btn:Enable()
+            btn:SetAlpha(1)
+        end
+    end
+    mainWin._updateTabAccess = UpdateTabAccess
 
     -- Vault tab button is a direct launcher: hides config, opens the vault window
     if tabBtns[1] and tabBtns[1]._tabName == "Vault" then
@@ -200,6 +210,18 @@ local function CreateMainWindow()
     -- =========================================================================
     tabBuilders["Profile"] = function(t)
         local MakeSep2 = MTR.MakeSep
+
+        local scroll = CreateFrame("ScrollFrame", nil, t, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", t, "TOPLEFT", 6, -6)
+        scroll:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -28, 8)
+
+        if t.SetClipsChildren then t:SetClipsChildren(true) end
+        local content = CreateFrame("Frame", nil, scroll)
+        content:SetWidth(820)
+        content:SetHeight(560)
+        if content.SetClipsChildren then content:SetClipsChildren(true) end
+        scroll:SetScrollChild(content)
+        t = content
 
         local hdr = t:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
         hdr:SetPoint("TOPLEFT",t,"TOPLEFT",10,-10)
@@ -283,145 +305,65 @@ local function CreateMainWindow()
             StaticPopup_Show("MEKTOWN_DEL_PROF2")
         end)
 
+        local accessSep = t:CreateTexture(nil,"ARTWORK")
+        accessSep:SetColorTexture(0.3,0.3,0.5,0.5)
+        accessSep:SetHeight(1)
+        accessSep:SetPoint("TOPLEFT",t,"TOPLEFT",0,-190)
+        accessSep:SetPoint("TOPRIGHT",t,"TOPRIGHT",0,-190)
 
-        local permSep = t:CreateTexture(nil,"ARTWORK")
-        permSep:SetColorTexture(0.3,0.3,0.5,0.5)
-        permSep:SetHeight(1)
-        permSep:SetPoint("TOPLEFT",t,"TOPLEFT",0,-190)
-        permSep:SetPoint("TOPRIGHT",t,"TOPRIGHT",0,-190)
+        local accessHdr = t:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
+        accessHdr:SetPoint("TOPLEFT",t,"TOPLEFT",10,-210)
+        accessHdr:SetText("|cffff2020Access & Permissions|r")
 
-        local permHdr = t:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-        permHdr:SetPoint("TOPLEFT",t,"TOPLEFT",10,-210)
-        permHdr:SetText("|cffff2020Officer Access Roles|r")
+        local accessDesc = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
+        accessDesc:SetPoint("TOPLEFT",t,"TOPLEFT",10,-236)
+        accessDesc:SetWidth(760)
+        accessDesc:SetWordWrap(true)
+        accessDesc:SetJustifyH("LEFT")
+        accessDesc:SetText("|cffaaaaaaRelease access model: guild-management tools are officer-only. Guild Ads, Recruit, DKP write actions, Loot / auction administration, and Inactivity / kick controls are restricted to officers and the Guild Master. Member utility tools such as Group Radar and Vault remain available through the member panel.|r")
 
-        local permDesc = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
-        permDesc:SetPoint("TOPLEFT",t,"TOPLEFT",10,-236)
-        permDesc:SetWidth(620)
-        permDesc:SetWordWrap(true)
-        permDesc:SetJustifyH("LEFT")
-        permDesc:SetText("|cffaaaaaaGuild Master only. Guild Master always keeps full access automatically. Select the current live guild ranks that should receive officer-level addon access. Suggestions are available from guild permissions when the client exposes them.|r")
-
-        local gmLine = t:CreateFontString(nil,"OVERLAY","GameFontHighlight")
-        gmLine:SetPoint("TOPLEFT",t,"TOPLEFT",10,-280)
-        gmLine:SetWidth(620)
-        gmLine:SetJustifyH("LEFT")
-        gmLine:SetText("|cffd4af37Guild Master|r — always full access")
-
-        local officerState = t:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-        officerState:SetPoint("TOPLEFT",t,"TOPLEFT",10,-304)
-        officerState:SetWidth(620)
-        officerState:SetWordWrap(true)
-        officerState:SetJustifyH("LEFT")
-
-        local officerHint = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
-        officerHint:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -332)
-        officerHint:SetWidth(620)
-        officerHint:SetWordWrap(true)
-        officerHint:SetJustifyH("LEFT")
-
-        local suggestBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
-        suggestBtn:SetSize(168, 22)
-        suggestBtn:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -378)
-        suggestBtn:SetText("Auto Detect Ranks")
-
-        -- Scroll-backed rank list with a visual cap so guilds with many custom
-        -- ranks stay inside the Profile panel instead of overflowing the UI.
-        local rankScroll = CreateFrame("ScrollFrame", nil, t, "UIPanelScrollFrameTemplate")
-        rankScroll:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -408)
-        rankScroll:SetSize(640, 180)
-
-        local rankContent = CreateFrame("Frame", nil, rankScroll)
-        rankContent:SetWidth(620)
-        rankContent:SetHeight(180)
-        rankScroll:SetScrollChild(rankContent)
-
-        local rankChecks = {}
-        local function RefreshOfficerRankUI()
-            for _, cb in ipairs(rankChecks) do cb:Hide() end
-
-            local suggested, suggestSource = MTR.GetOfficerRankSuggestions and MTR.GetOfficerRankSuggestions() or {}, "none"
-            local suggestedNames = {}
-            for _, info in ipairs(suggested or {}) do
-                suggestedNames[#suggestedNames + 1] = tostring(info.name or "?")
-            end
-
-            if not MTR.isGM then
-                officerState:SetText("|cffaaaaaaOnly the current Guild Master can edit officer-access ranks.|r")
-                officerHint:SetText("|cff888888Suggested ranks are only available to the Guild Master while inside a guild.|r")
-                suggestBtn:Disable()
-                rankContent:SetHeight(180)
-                return
-            end
-
-            suggestBtn:Enable()
-            if #suggestedNames > 0 then
-                local via = (suggestSource == "guild_permissions") and "guild permissions" or "rank heuristics"
-                officerHint:SetText("|cffaaaaaaSuggested officer ranks from |cffd4af37" .. via .. "|r|cffaaaaaa: |r|cffd4af37" .. table.concat(suggestedNames, "|r, |cffd4af37") .. "|r")
-            else
-                officerHint:SetText("|cffaaaaaaNo officer-rank suggestions were detected automatically. Use the checkboxes below to assign access manually.|r")
-            end
-
-            local ranks = MTR.GetGuildRanks and MTR.GetGuildRanks() or {}
-            local assigned = {}
-            local row = 0
-            for _, info in ipairs(ranks) do
-                if info.index ~= 0 then
-                    row = row + 1
-                    local cb = rankChecks[row]
-                    if not cb then
-                        cb = CreateFrame("CheckButton", nil, rankContent, "UICheckButtonTemplate")
-                        cb.text = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-                        cb.text:SetPoint("LEFT", cb, "RIGHT", 4, 1)
-                        rankChecks[row] = cb
-                    end
-                    cb:ClearAllPoints()
-                    cb:SetPoint("TOPLEFT", rankContent, "TOPLEFT", 4, -((row - 1) * 24))
-                    cb.rankName = info.name
-                    cb.rankIndex = info.index
-                    cb.text:SetText(string.format("%s  |cff888888(rank %d)|r", info.name or "?", info.index or 0))
-                    cb:SetChecked(MTR.IsConfiguredOfficerRank and MTR.IsConfiguredOfficerRank(info.name))
-                    cb:SetScript("OnClick", function(self)
-                        if not MTR.isGM then
-                            self:SetChecked(MTR.IsConfiguredOfficerRank and MTR.IsConfiguredOfficerRank(self.rankName))
-                            return
-                        end
-                        if MTR.SetOfficerRank then
-                            MTR.SetOfficerRank(self.rankName, self:GetChecked() and true or false)
-                        end
-                        RefreshOfficerRankUI()
-                    end)
-                    cb:Show()
-                    if cb:GetChecked() then
-                        assigned[#assigned + 1] = tostring(info.name or "?")
-                    end
-                end
-            end
-
-            rankContent:SetHeight(math.max(180, row * 24 + 10))
-
-            if #assigned > 0 then
-                officerState:SetText("|cffaaaaaaOfficer-access ranks:|r |cffd4af37" .. table.concat(assigned, "|r, |cffd4af37") .. "|r")
-            else
-                officerState:SetText("|cffaaaaaaOfficer-access ranks:|r |cffff6666None assigned yet. Only the Guild Master currently has admin access.|r")
-            end
+        local statusLbl = t:CreateFontString(nil,"OVERLAY","GameFontHighlight")
+        statusLbl:SetPoint("TOPLEFT",t,"TOPLEFT",10,-286)
+        statusLbl:SetWidth(760)
+        statusLbl:SetWordWrap(true)
+        statusLbl:SetJustifyH("LEFT")
+        if MTR.isGM then
+            statusLbl:SetText("|cff00ff00Current access: Guild Master|r")
+        elseif MTR.isOfficer then
+            statusLbl:SetText("|cff00ff00Current access: Officer|r")
+        else
+            local rankName = (MTR.GetPlayerRankName and MTR.GetPlayerRankName()) or "Unguilded"
+            statusLbl:SetText("|cffffff88Current access: Member|r  |cffaaaaaa(" .. tostring(rankName) .. ")|r")
         end
 
-        suggestBtn:SetScript("OnClick", function()
-            if not MTR.isGM then return end
-            local count = MTR.ApplyOfficerRankSuggestions and MTR.ApplyOfficerRankSuggestions(true) or 0
-            RefreshOfficerRankUI()
-            if count > 0 then
-                MP("Officer-access suggestions applied for " .. tostring(count) .. " rank(s). Review and adjust if needed.")
-            else
-                MP("No officer-rank suggestions found automatically. Please assign ranks manually.")
-            end
-        end)
+        local rulesLbl = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
+        rulesLbl:SetPoint("TOPLEFT",t,"TOPLEFT",10,-320)
+        rulesLbl:SetWidth(760)
+        rulesLbl:SetWordWrap(true)
+        rulesLbl:SetJustifyH("LEFT")
+        rulesLbl:SetText([[|cffd4af37Restricted actions:|r
+• Recruit popups, guild invites, recruit management
+• DKP award / deduct / set / sync actions
+• Inactivity mass-kick and kick tools
 
-        mainWin._refreshOfficerRankUI = RefreshOfficerRankUI
+|cffd4af37Open to everyone:|r
+• Character Vault
+• Group Radar
+• Guild Tree / Standings / normal viewing tabs
+• Profile viewing and profile switching]])
+
+        if MTR.AttachTooltip then
+            MTR.AttachTooltip(profNew, "New Profile", "Create a new settings profile.")
+            MTR.AttachTooltip(profCopy, "Copy Profile", "Duplicate the current profile into a new one.")
+            MTR.AttachTooltip(profDel, "Delete Profile", "Delete the active profile. Default cannot be removed.")
+        end
+
+        mainWin._refreshOfficerRankUI = nil
+        mainWin._refreshFeatureAccessUI = nil
         if MTR.initialized then
             RebuildPDD()
-            if mainWin._refreshOfficerRankUI then mainWin._refreshOfficerRankUI() end
         end
+        content:SetHeight(460)
     end
 
     -- =========================================================================
@@ -752,24 +694,35 @@ local function CreateMainWindow()
     -- GUILD TAB  (lazy-built on first click)
     -- =========================================================================
     tabBuilders["Guild"] = function(t)
-        local PANEL_W = 660
-        local LEFT = math.floor((900 - PANEL_W) / 2)
-        local function CenterX(w)
-            return LEFT + math.floor((PANEL_W - w) / 2)
-        end
+        if t.SetClipsChildren then t:SetClipsChildren(true) end
+        local scroll = CreateFrame("ScrollFrame", nil, t, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", t, "TOPLEFT", 6, -6)
+        scroll:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -28, 8)
+
+        local content = CreateFrame("Frame", nil, scroll)
+        content:SetWidth(820)
+        content:SetHeight(1220)
+        if content.SetClipsChildren then content:SetClipsChildren(true) end
+        scroll:SetScrollChild(content)
+        t = content
+
+        local PANEL_W = 780
+        local LEFT = 12
+        local FIELD_X = LEFT + 16
+        local FIELD_W = PANEL_W - 32
 
         local hdr = t:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-        hdr:SetPoint("TOPLEFT", t, "TOPLEFT", CenterX(220), -10)
-        hdr:SetWidth(220)
-        hdr:SetJustifyH("CENTER")
+        hdr:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -10)
+        hdr:SetWidth(PANEL_W)
+        hdr:SetJustifyH("LEFT")
         hdr:SetText("|cffff2020Guild Settings|r")
 
         local desc = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
         desc:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -36)
         desc:SetWidth(PANEL_W)
-        desc:SetJustifyH("CENTER")
+        desc:SetJustifyH("LEFT")
         desc:SetWordWrap(true)
-        desc:SetText("|cffaaaaaaCentral guild automation, messaging, and invite configuration. Narrow controls are centered for readability while larger editors still use the full content width they need.|r")
+        desc:SetText("|cffaaaaaaGuild automation, messaging, and invite configuration. Content is contained inside a fixed-width scroll panel and kept left-aligned so nothing bleeds outside the tab bounds.|r")
 
         local topSep = t:CreateTexture(nil, "ARTWORK")
         topSep:SetColorTexture(0.3,0.3,0.5,0.5)
@@ -778,30 +731,30 @@ local function CreateMainWindow()
         topSep:SetPoint("TOPRIGHT", t, "TOPLEFT", LEFT + PANEL_W, -66)
 
         local autoInviteHdr = t:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-        autoInviteHdr:SetPoint("TOPLEFT", t, "TOPLEFT", CenterX(220), -84)
-        autoInviteHdr:SetWidth(220)
-        autoInviteHdr:SetJustifyH("CENTER")
+        autoInviteHdr:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -84)
+        autoInviteHdr:SetWidth(PANEL_W)
+        autoInviteHdr:SetJustifyH("LEFT")
         autoInviteHdr:SetText("|cffd4af37Guild Invite|r")
 
-        mainWin._ckInvEnable   = MakeCK("InvEn",  t, "Enable auto-invite from guild chat", CenterX(260),  -116)
-        mainWin._ckInvAnnounce = MakeCK("InvAnn", t, "Announce invite in guild chat",      CenterX(220), -144)
+        mainWin._ckInvEnable   = MakeCK("InvEn",  t, "Enable auto-invite from guild chat", FIELD_X,  -116)
+        mainWin._ckInvAnnounce = MakeCK("InvAnn", t, "Announce invite in guild chat",      FIELD_X, -144)
         mainWin._ckInvEnable:SetScript("OnClick",   function(s) MTR.db.enableGuildInvites=s:GetChecked() end)
         mainWin._ckInvAnnounce:SetScript("OnClick", function(s) MTR.db.inviteAnnounce=s:GetChecked() end)
 
         local lbl1 = t:CreateFontString(nil,"OVERLAY","GameFontNormal")
         lbl1:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -182)
         lbl1:SetWidth(PANEL_W)
-        lbl1:SetJustifyH("CENTER")
+        lbl1:SetJustifyH("LEFT")
         lbl1:SetText("Welcome whisper after invite (blank = off):")
-        mainWin._invWelcomeEB = MakeIn("InvWelcome", t, 520, CenterX(520), -202)
+        mainWin._invWelcomeEB = MakeIn("InvWelcome", t, FIELD_W, FIELD_X, -202)
         mainWin._invWelcomeEB:SetScript("OnTextChanged",function(s) MTR.db.inviteWelcomeMsg=s:GetText() end)
 
         local lbl2 = t:CreateFontString(nil,"OVERLAY","GameFontNormal")
         lbl2:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -236)
         lbl2:SetWidth(PANEL_W)
-        lbl2:SetJustifyH("CENTER")
+        lbl2:SetJustifyH("LEFT")
         lbl2:SetText("Invite cooldown (seconds):")
-        mainWin._invCDSld = MakeSL("InvCD", t, 350, CenterX(350), -256, 30, 600, 10)
+        mainWin._invCDSld = MakeSL("InvCD", t, 420, FIELD_X, -256, 30, 600, 10)
         mainWin._invCDSld:SetScript("OnValueChanged",function(s,v)
             local r=math.floor(v/10)*10
             _G["MekSLv_InvCDText"]:SetText(r.."s")
@@ -813,12 +766,12 @@ local function CreateMainWindow()
         ikDisplay:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -320)
         ikDisplay:SetWidth(PANEL_W)
         ikDisplay:SetWordWrap(true)
-        ikDisplay:SetJustifyH("CENTER")
+        ikDisplay:SetJustifyH("LEFT")
         ikDisplay:SetText("Loading...")
         mainWin._ikDisplay = ikDisplay
 
         local ikEditBtn = MakeBT(t,"Edit Keywords",130,24)
-        ikEditBtn:SetPoint("TOPLEFT", t, "TOPLEFT", CenterX(130), -348)
+        ikEditBtn:SetPoint("TOPLEFT", t, "TOPLEFT", FIELD_X, -348)
         ikEditBtn:SetScript("OnClick",function()
             OpenEP("Edit Invite Keywords", table.concat(MTR.db.inviteKeywords or {},"\n"), function(text)
                 MTR.db.inviteKeywords={}
@@ -832,23 +785,23 @@ local function CreateMainWindow()
         local note = t:CreateFontString(nil,"OVERLAY","GameFontGreen")
         note:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -378)
         note:SetWidth(PANEL_W)
-        note:SetJustifyH("CENTER")
+        note:SetJustifyH("LEFT")
         note:SetWordWrap(true)
         note:SetText("Digit-only messages (123, 1...) and short 'ready'/'rdy' are also matched automatically.")
 
         MakeSep(t,"Whisper Auto-Responder",-416)
-        mainWin._ckAutoReply=MakeCK("AutoRpy",t,"Enable whisper auto-responder",CenterX(220),-444)
+        mainWin._ckAutoReply=MakeCK("AutoRpy",t,"Enable whisper auto-responder",FIELD_X,-444)
         mainWin._ckAutoReply:SetScript("OnClick",function(s) MTR.db.autoResponderEnabled=s:GetChecked() end)
         MakeSep(t,"Auto-Responses (trigger|response per line)",-488)
         local arDisplay=t:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
         arDisplay:SetPoint("TOPLEFT",t,"TOPLEFT",LEFT,-506)
         arDisplay:SetWidth(PANEL_W)
         arDisplay:SetWordWrap(true)
-        arDisplay:SetJustifyH("CENTER")
+        arDisplay:SetJustifyH("LEFT")
         arDisplay:SetText("Loading...")
         mainWin._arDisplay=arDisplay
         local arEditBtn=MakeBT(t,"Edit Responses",150,26)
-        arEditBtn:SetPoint("TOPLEFT",t,"TOPLEFT",CenterX(150),-534)
+        arEditBtn:SetPoint("TOPLEFT",t,"TOPLEFT",FIELD_X,-534)
         arEditBtn:SetScript("OnClick",function()
             local lines={} for _,rule in ipairs(MTR.db.autoResponses or {}) do if rule.trigger and rule.response then lines[#lines+1]=rule.trigger.."|"..rule.response end end
             OpenEP("Edit Auto-Responses (trigger|response)",table.concat(lines,"\n"),function(text)
@@ -863,11 +816,11 @@ local function CreateMainWindow()
         motdDisplay:SetPoint("TOPLEFT",t,"TOPLEFT",LEFT,-596)
         motdDisplay:SetWidth(PANEL_W)
         motdDisplay:SetWordWrap(true)
-        motdDisplay:SetJustifyH("CENTER")
+        motdDisplay:SetJustifyH("LEFT")
         motdDisplay:SetText("Loading...")
         mainWin._motdDisplay=motdDisplay
         local motdEditBtn=MakeBT(t,"Edit MOTD Templates",170,26)
-        motdEditBtn:SetPoint("TOPLEFT",t,"TOPLEFT",CenterX(170),-624)
+        motdEditBtn:SetPoint("TOPLEFT",t,"TOPLEFT",FIELD_X,-624)
         motdEditBtn:SetScript("OnClick",function()
             local lines={} for k,v in pairs(MTR.db.motdTemplates or {}) do lines[#lines+1]=k.."="..v end table.sort(lines)
             OpenEP("Edit MOTD Templates (key=value)",table.concat(lines,"\n"),function(text)
@@ -879,18 +832,25 @@ local function CreateMainWindow()
         local arL=t:CreateFontString(nil,"OVERLAY","GameFontNormal")
         arL:SetPoint("TOPLEFT",t,"TOPLEFT",LEFT,-660)
         arL:SetWidth(PANEL_W)
-        arL:SetJustifyH("CENTER")
+        arL:SetJustifyH("LEFT")
         arL:SetText("Set MOTD by key:")
-        mainWin._motdKeyEB=MakeIn("MOTDKey",t,140,CenterX(140),-682)
+        mainWin._motdKeyEB=MakeIn("MOTDKey",t,180,FIELD_X,-682)
         local setMotdBtn=MakeBT(t,"Set MOTD",100,22)
-        setMotdBtn:SetPoint("TOPLEFT",t,"TOPLEFT",CenterX(100),-710)
+        setMotdBtn:SetPoint("LEFT",mainWin._motdKeyEB,"RIGHT",8,0)
         setMotdBtn:SetScript("OnClick",function()
-            if not MTR.isOfficer then MPE("Officers only.") return end
+            if not (MTR.isOfficer or MTR.isGM) then MPE("Officers only.") return end
             local k=(mainWin._motdKeyEB:GetText() or ""):match("^%s*(.-)%s*$") if k=="" then return end
             local tmpl=MTR.db and MTR.db.motdTemplates and MTR.db.motdTemplates[k]
             if not tmpl then MP("Unknown template key: "..k) return end
             GuildSetMOTD(tmpl) MP("MOTD set to '"..k.."' template.")
         end)
+
+        if MTR.AttachTooltip then
+            MTR.AttachTooltip(ikEditBtn, "Invite Keywords", "Edit guild-chat keywords that trigger auto-invite.")
+            MTR.AttachTooltip(arEditBtn, "Auto Responses", "Edit whisper auto-response rules in trigger|response format.")
+            MTR.AttachTooltip(motdEditBtn, "MOTD Templates", "Edit saved Message of the Day templates.")
+            MTR.AttachTooltip(setMotdBtn, "Set MOTD", "Apply the template key entered to the live guild MOTD.")
+        end
 
     end
 
@@ -1644,14 +1604,14 @@ local function CreateMainWindow()
         openBtn:SetScript("OnClick",function()
             if MTR.OpenGroupRadar then MTR.OpenGroupRadar() end
         end)
+        if MTR.AttachTooltip then MTR.AttachTooltip(openBtn, "Open Group Radar", "Opens the live recruiter list detected by Group Radar.") end
 
         local lfgBtn=MakeBT(t,"Post LFG",150,30)
         lfgBtn:SetPoint("LEFT",openBtn,"RIGHT",10,0)
         lfgBtn:SetScript("OnClick",function()
-            if MTR.GroupRadar and MTR.GroupRadar.ShowFindGroupFrame then
-                MTR.GroupRadar.ShowFindGroupFrame()
-            end
+            if MTR.OpenFindGroup then MTR.OpenFindGroup() end
         end)
+        if MTR.AttachTooltip then MTR.AttachTooltip(lfgBtn, "Post LFG", "Opens the Group Radar LFG posting window.") end
 
         -- ── Refresh helper ────────────────────────────────────────────────────
         mainWin._refreshGroupRadarTab = function()
@@ -1768,6 +1728,8 @@ local function CreateMainWindow()
         -- (widgets are lazy-built; _rebuildProfileDD is set by the tab builder)
         if mainWin._rebuildProfileDD then mainWin._rebuildProfileDD() end
         if mainWin._refreshOfficerRankUI then mainWin._refreshOfficerRankUI() end
+        if mainWin._refreshFeatureAccessUI then mainWin._refreshFeatureAccessUI() end
+        if mainWin._updateTabAccess then mainWin._updateTabAccess() end
     end
 
     ShowTab("Recruit")
@@ -1833,28 +1795,28 @@ end
 -- PUBLIC ENTRY POINT
 -- ============================================================================
 function MTR.OpenConfig()
-    -- ── Permission model ──────────────────────────────────────────────────────
-    -- Guild Master (rank index 0) always has full access.
-    -- Additional officer-access ranks are assigned by the Guild Master in the
-    -- Profile tab using the guild's live rank names.
-    -- Regular members fall back to the member panel.
-    -- ─────────────────────────────────────────────────────────────────────────
-
-    if not MTR.isOfficer then
-        MTR.OpenMemberWindow()
+    if not (MTR.isOfficer or MTR.isGM) then
+        if MTR.OpenMemberWindow then
+            MTR.OpenMemberWindow()
+        end
         return
     end
 
-    -- Officers and GM: full config window
     CreateMainWindow()
     if mainWin:IsShown() then mainWin:Hide() return end
     if MTR.initialized and MTR.db then mainWin:Refresh() end
 
-    -- All tabs visible to both GM and Officers — no hidden tabs for officer rank
-    for _, btn in ipairs(mainWin._tabBtns) do
-        btn:Show()
-    end
+    if mainWin._updateTabAccess then mainWin._updateTabAccess() end
 
-    mainWin._showTab("Recruit")
+    local order = { "Recruit", "DKP", "Inactive", "Guild", "Standings", "Loot", "Group Radar", "Profile" }
+    local shown = false
+    for _, tabName in ipairs(order) do
+        if tabName == "Profile" or (MTR.CanAccess and MTR.CanAccess(tabName)) then
+            mainWin._showTab(tabName)
+            shown = true
+            break
+        end
+    end
+    if not shown then mainWin._showTab("Profile") end
     mainWin:Show()
 end

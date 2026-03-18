@@ -260,3 +260,76 @@ function ChatEdit_InsertLink(text)
     -- No MekTown box is focused – fall through to normal chat insertion.
     return _origInsertLink(text)
 end
+
+
+-- Tooltip helper
+function MTR.AttachTooltip(frame, title, text)
+    if not frame then return end
+    frame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if title and title ~= "" then
+            GameTooltip:SetText(title, 1, 0.82, 0)
+        end
+        if text and text ~= "" then
+            GameTooltip:AddLine(text, 1, 1, 1, true)
+        end
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+end
+
+-- Simple collapsible section helper for large config panels
+function MTR.MakeCollapsibleSection(parent, title, width, ax, ay, defaultExpanded)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetWidth(width or 780)
+    holder:SetPoint("TOPLEFT", parent, "TOPLEFT", ax or 0, ay or 0)
+
+    local header = CreateFrame("Button", nil, holder)
+    header:SetSize(width or 780, 20)
+    header:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
+
+    local line = holder:CreateTexture(nil, "ARTWORK")
+    line:SetColorTexture(0.2, 0.2, 0.35, 0.6)
+    line:SetHeight(1)
+    line:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -18)
+    line:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, -18)
+
+    local label = holder:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
+    label:SetJustifyH("LEFT")
+
+    local content = CreateFrame("Frame", nil, holder)
+    content:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -24)
+    content:SetWidth((width or 780) - 4)
+    content:SetHeight(1)
+    if content.SetClipsChildren then content:SetClipsChildren(true) end
+
+    holder.expanded = (defaultExpanded ~= false)
+
+    local function RefreshHeader()
+        local prefix = holder.expanded and "[-] " or "[+] "
+        label:SetText("|cffd4af37" .. prefix .. title .. "|r")
+        if holder.expanded then content:Show() else content:Hide() end
+        holder:SetHeight((holder.expanded and (24 + (content._contentHeight or 1)) or 24))
+    end
+
+    function holder:SetContentHeight(h)
+        h = math.max(1, tonumber(h) or 1)
+        content._contentHeight = h
+        content:SetHeight(h)
+        RefreshHeader()
+    end
+
+    header:SetScript("OnClick", function()
+        holder.expanded = not holder.expanded
+        RefreshHeader()
+    end)
+
+    holder.header = header
+    holder.label = label
+    holder.content = content
+    RefreshHeader()
+    return holder, content
+end

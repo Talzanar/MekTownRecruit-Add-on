@@ -38,6 +38,10 @@ end
 -- PUBLIC
 -- ============================================================================
 function MTR.AttSnapshot(zone)
+    if not (MTR.isOfficer or MTR.isGM) then
+        MTR.MPE("Officers only.")
+        return
+    end
     if not IsInRaid() and not IsInGroup() then
         MTR.MPE("Not in a group - cannot snapshot attendance.")
         return
@@ -57,6 +61,10 @@ function MTR.AttSnapshot(zone)
 end
 
 function MTR.AttBossKill(bossName)
+    if not (MTR.isOfficer or MTR.isGM) then
+        MTR.MPE("Officers only.")
+        return
+    end
     local zone    = GetRealZoneText() or "Unknown"
     local players = AttGetPlayers()
     for pname in pairs(players) do
@@ -73,6 +81,10 @@ function MTR.AttBossKill(bossName)
 end
 
 function MTR.AttEnd()
+    if not (MTR.isOfficer or MTR.isGM) then
+        MTR.MPE("Officers only.")
+        return
+    end
     if not MTR.currentSession then MTR.MPE("No active session.") return end
     local dur = math.floor((time() - MTR.currentSession.startTs) / 60)
     MTR.MP("Session ended: " .. MTR.currentSession.zone .. " - " .. #MTR.currentSession.bosses .. " bosses - " .. dur .. "m")
@@ -88,7 +100,7 @@ attFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 attFrame:SetScript("OnEvent", function()
     if not MTR.initialized or not MTR.db then return end
     if not MTR.db.attendanceEnabled or not MTR.db.attendanceAutoSnapshot then return end
-    if not MTR.isOfficer then return end
+    if not (MTR.isOfficer or MTR.isGM) then return end
     local zone = GetRealZoneText() or ""
     if MTR.RAID_ZONES[zone] and not MTR.inInstance then
         MTR.After(3, function()

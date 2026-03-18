@@ -83,7 +83,7 @@ function MTR.DKPStandings()
 end
 
 function MTR.DKPPublish(channel, target)
-    if not MTR.isOfficer then MTR.MPE("Officers only.") return end
+    if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
     local chan = (channel or MTR.db.dkpPublishChannel):upper()
     local standings = MTR.DKPStandings()
     local function Send(msg)
@@ -105,7 +105,7 @@ end
 -- BULK AWARD
 -- ============================================================================
 function MTR.DKPBulkAward(names, amount, reason)
-    if not MTR.isOfficer then MTR.MPE("Officers only.") return end
+    if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
     local count = 0
     for _, name in ipairs(names) do
         MTR.DKPAdd(name, amount, reason or "Bulk award", MTR.playerName)
@@ -371,7 +371,7 @@ end
 -- Called by DKPSyncToRaidSafe after the balance broadcast.
 local function DHFlushQueue()
     if #dhQueue == 0 then return end
-    if not MTR.isOfficer then dhQueue = {} return end
+    if not (MTR.isOfficer or MTR.isGM) then dhQueue = {} return end
     if not IsInGuild()    then dhQueue = {} return end
 
     SendAddonMessage(DH_PREFIX, "DH:S:" .. (MTR.playerName or ""), "GUILD")
@@ -454,7 +454,7 @@ local syncBuf    = nil
 local syncSender = nil
 
 MTR.DKPSyncToRaidSafe = function()
-    if not MTR.isOfficer then return end
+    if not (MTR.isOfficer or MTR.isGM) then return end
     if not IsInGuild()    then return end
 
     local standings = MTR.DKPStandings()
@@ -605,7 +605,7 @@ end
 function MTR.MaybeBroadcastSnapshot(reason)
     local st = EnsureSyncStateFresh()
     local now = time()
-    if not MTR.isOfficer then return end
+    if not (MTR.isOfficer or MTR.isGM) then return end
     if st.lastBroadcastRevision == st.revision and (now - (st.lastFullSyncAt or 0) < 30) then
         return
     end

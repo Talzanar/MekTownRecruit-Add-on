@@ -280,7 +280,7 @@ function MTR.ShowRecruitPopup(sender, message)
     invBtn:SetSize(110, 28) invBtn:SetPoint("LEFT", wBtn, "RIGHT", 8, 0)
     invBtn:SetText("Guild Invite")
     invBtn:SetScript("OnClick", function()
-        if not MTR.isOfficer then MTR.MPE("Officers only.") return end
+        if not (MTR.isOfficer or MTR.isGM) then MTR.MPE("Officers only.") return end
         GuildInvite(sender)
         local ts = date("%Y-%m-%d %H:%M")
         RHMerge(sender, MTR.playerName or "Unknown", ts)
@@ -315,6 +315,25 @@ end
 function MTR.ShowTestPopup()
     MTR.ShowRecruitPopup("Testplayer",
         "Hey anyone know a good guild? LF raiding guild fresh 70 havnt played since vanilla lol")
+end
+
+-- ============================================================================
+-- GROUP-RADAR MESSAGE EXCLUSION
+-- Keep group-finding traffic completely separate from recruit detection.
+-- ============================================================================
+local function LooksLikeGroupSearch(lower)
+    if not lower or lower == "" then return false end
+    if lower:find("lfm", 1, true) or lower:find("lfg", 1, true) then return true end
+    if lower:find("looking for", 1, true) then
+        if lower:find("looking for guild", 1, true) or lower:find("looking for a guild", 1, true) or lower:find("looking for raiding guild", 1, true) or lower:find("looking for social guild", 1, true) then
+            return false
+        end
+        return true
+    end
+    if lower:find("need tank", 1, true) or lower:find("need healer", 1, true) or lower:find("need heal", 1, true) or lower:find("need dps", 1, true) then return true end
+    if lower:find("looking for more", 1, true) or lower:find("looking for tank", 1, true) or lower:find("looking for healer", 1, true) or lower:find("looking for heal", 1, true) or lower:find("looking for dps", 1, true) then return true end
+    if lower:find("group radar", 1, true) or lower:find("mythic+", 1, true) or lower:find("m+", 1, true) then return true end
+    return false
 end
 
 -- ============================================================================
@@ -360,6 +379,12 @@ scanFrame:SetScript("OnEvent", function(self, event, message, sender)
     -- Skip recruitment ads from guilds
     if IsRecruitmentAd(lower) then
         MTR.dprint("Skipping ad from", sender)
+        return
+    end
+
+    -- Do not hijack LFG/LFM traffic. Those belong to Group Radar, not Recruit.
+    if LooksLikeGroupSearch(lower) then
+        MTR.dprint("Skipping group-search style message from", sender)
         return
     end
 

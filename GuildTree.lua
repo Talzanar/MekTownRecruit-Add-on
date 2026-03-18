@@ -217,8 +217,9 @@ local gtRosterFrame = CreateFrame("Frame")
 gtRosterFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
 gtRosterFrame:SetScript("OnEvent", function()
     if not MTR.initialized or not MTR.db then return end
-    if not (MTR.isOfficer or MTR.isGM) then return end
-    ScanGuildNotes()
+    if MTR.isOfficer or MTR.isGM then
+        ScanGuildNotes()
+    end
     if MTR.RefreshGuildTree then MTR.RefreshGuildTree() end
 end)
 
@@ -296,108 +297,116 @@ end
 -- BUILD GUILD TREE TAB
 -- ============================================================================
 function MTR.BuildGuildTreeTab(t)
-    if not (MTR.isOfficer or MTR.isGM) then
-        local denied = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        denied:SetPoint("CENTER", t, "CENTER", 0, 0)
-        denied:SetText("|cffff4444This feature is restricted to Officers and Guild Masters.|r")
-        return
-    end
+    if t._gtBuilt then return end
+    t._gtBuilt = true
+    local canManage = (MTR.isOfficer or MTR.isGM)
+    local treeTopY = -160
 
     -- ── Description ──────────────────────────────────────────────────────
     local desc = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     desc:SetPoint("TOPLEFT",  t, "TOPLEFT",  10, -8)
     desc:SetPoint("TOPRIGHT", t, "TOPRIGHT", -10, -8)
     desc:SetWordWrap(true) desc:SetJustifyH("LEFT")
-    desc:SetText(
-        "|cffaaaaaa" ..
-        "All guild members appear below. " ..
-        "Use the form to link alts to their main. " ..
-        "Characters with officer notes containing 'Alt:MainName' are linked automatically. " ..
-        "Changes sync to all online officers instantly." ..
-        "|r")
+    if canManage then
+        desc:SetText(
+            "|cffaaaaaa" ..
+            "All guild members appear below. " ..
+            "Use the form to link alts to their main. " ..
+            "Characters with officer notes containing 'Alt:MainName' are linked automatically. " ..
+            "Changes sync to all online officers instantly." ..
+            "|r")
 
-    -- ── Input form ───────────────────────────────────────────────────────
-    local sep1 = t:CreateTexture(nil, "ARTWORK")
-    sep1:SetColorTexture(0.3, 0.3, 0.5, 0.5) sep1:SetHeight(1)
-    sep1:SetPoint("TOPLEFT",  t, "TOPLEFT",  0, -42)
-    sep1:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, -42)
+        -- ── Input form ───────────────────────────────────────────────────────
+        local sep1 = t:CreateTexture(nil, "ARTWORK")
+        sep1:SetColorTexture(0.3, 0.3, 0.5, 0.5) sep1:SetHeight(1)
+        sep1:SetPoint("TOPLEFT",  t, "TOPLEFT",  0, -42)
+        sep1:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, -42)
 
-    local formHdr = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    formHdr:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -52)
-    formHdr:SetText("|cffd4af37Link Characters|r")
+        local formHdr = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        formHdr:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -52)
+        formHdr:SetText("|cffd4af37Link Characters|r")
 
-    local charLbl = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charLbl:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -70)
-    charLbl:SetText("Character:")
+        local charLbl = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        charLbl:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -70)
+        charLbl:SetText("Character:")
 
-    local charEB = CreateFrame("EditBox", "MekGTCharEB", t, "InputBoxTemplate")
-    charEB:SetSize(180, 20) charEB:SetAutoFocus(false)
-    charEB:SetPoint("TOPLEFT", t, "TOPLEFT", 80, -66)
+        local charEB = CreateFrame("EditBox", "MekGTCharEB", t, "InputBoxTemplate")
+        charEB:SetSize(180, 20) charEB:SetAutoFocus(false)
+        charEB:SetPoint("TOPLEFT", t, "TOPLEFT", 80, -66)
 
-    local mainLbl = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mainLbl:SetPoint("TOPLEFT", t, "TOPLEFT", 280, -70)
-    mainLbl:SetText("Main:")
+        local mainLbl = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        mainLbl:SetPoint("TOPLEFT", t, "TOPLEFT", 280, -70)
+        mainLbl:SetText("Main:")
 
-    local mainEB = CreateFrame("EditBox", "MekGTMainEB", t, "InputBoxTemplate")
-    mainEB:SetSize(180, 20) mainEB:SetAutoFocus(false)
-    mainEB:SetPoint("TOPLEFT", t, "TOPLEFT", 315, -66)
+        local mainEB = CreateFrame("EditBox", "MekGTMainEB", t, "InputBoxTemplate")
+        mainEB:SetSize(180, 20) mainEB:SetAutoFocus(false)
+        mainEB:SetPoint("TOPLEFT", t, "TOPLEFT", 315, -66)
 
-    local setAltBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
-    setAltBtn:SetSize(100, 24) setAltBtn:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -96)
-    setAltBtn:SetText("Set as Alt")
-    setAltBtn:SetScript("OnClick", function()
-        local cn = charEB:GetText():match("^%s*(.-)%s*$")
-        local mn = mainEB:GetText():match("^%s*(.-)%s*$")
-        if cn == "" or mn == "" then MTR.MPE("Enter both Character and Main name.") return end
-        MTR.GTSetAlt(cn, mn)
-        charEB:SetText("") mainEB:SetText("")
-    end)
-
-    local setMainBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
-    setMainBtn:SetSize(110, 24) setMainBtn:SetPoint("LEFT", setAltBtn, "RIGHT", 6, 0)
-    setMainBtn:SetText("Set as Main")
-    setMainBtn:SetScript("OnClick", function()
-        local cn = charEB:GetText():match("^%s*(.-)%s*$")
-        if cn == "" then MTR.MPE("Enter the Character name.") return end
-        MTR.GTSetMain(cn)
-        charEB:SetText("") mainEB:SetText("")
-    end)
-
-    local delBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
-    delBtn:SetSize(80, 24) delBtn:SetPoint("LEFT", setMainBtn, "RIGHT", 6, 0)
-    delBtn:SetText("|cffff4444Unlink|r")
-    delBtn:SetScript("OnClick", function()
-        local cn = charEB:GetText():match("^%s*(.-)%s*$")
-        if cn == "" then MTR.MPE("Enter the Character name.") return end
-        MTR.GTRemove(cn)
-        charEB:SetText("") mainEB:SetText("")
-    end)
-
-    local scanBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
-    scanBtn:SetSize(140, 24) scanBtn:SetPoint("LEFT", delBtn, "RIGHT", 14, 0)
-    scanBtn:SetText("Scan Guild Notes")
-    scanBtn:SetScript("OnClick", function()
-        GuildRoster()
-        MTR.After(1.5, function()
-            local count = ScanGuildNotes() or 0
-            MTR.MP("Guild note scan complete — " .. count .. " alt link(s) found.")
-            if MTR.RefreshGuildTree then MTR.RefreshGuildTree() end
+        local setAltBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
+        setAltBtn:SetSize(100, 24) setAltBtn:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -96)
+        setAltBtn:SetText("Set as Alt")
+        setAltBtn:SetScript("OnClick", function()
+            local cn = charEB:GetText():match("^%s*(.-)%s*$")
+            local mn = mainEB:GetText():match("^%s*(.-)%s*$")
+            if cn == "" or mn == "" then MTR.MPE("Enter both Character and Main name.") return end
+            MTR.GTSetAlt(cn, mn)
+            charEB:SetText("") mainEB:SetText("")
         end)
-    end)
+
+        local setMainBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
+        setMainBtn:SetSize(110, 24) setMainBtn:SetPoint("LEFT", setAltBtn, "RIGHT", 6, 0)
+        setMainBtn:SetText("Set as Main")
+        setMainBtn:SetScript("OnClick", function()
+            local cn = charEB:GetText():match("^%s*(.-)%s*$")
+            if cn == "" then MTR.MPE("Enter the Character name.") return end
+            MTR.GTSetMain(cn)
+            charEB:SetText("") mainEB:SetText("")
+        end)
+
+        local delBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
+        delBtn:SetSize(80, 24) delBtn:SetPoint("LEFT", setMainBtn, "RIGHT", 6, 0)
+        delBtn:SetText("|cffff4444Unlink|r")
+        delBtn:SetScript("OnClick", function()
+            local cn = charEB:GetText():match("^%s*(.-)%s*$")
+            if cn == "" then MTR.MPE("Enter the Character name.") return end
+            MTR.GTRemove(cn)
+            charEB:SetText("") mainEB:SetText("")
+        end)
+
+        local scanBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
+        scanBtn:SetSize(140, 24) scanBtn:SetPoint("LEFT", delBtn, "RIGHT", 14, 0)
+        scanBtn:SetText("Scan Guild Notes")
+        scanBtn:SetScript("OnClick", function()
+            GuildRoster()
+            MTR.After(1.5, function()
+                local count = ScanGuildNotes() or 0
+                MTR.MP("Guild note scan complete — " .. count .. " alt link(s) found.")
+                if MTR.RefreshGuildTree then MTR.RefreshGuildTree() end
+            end)
+        end)
+
+        treeTopY = -160
+    else
+        desc:SetText(
+            "|cffaaaaaa" ..
+            "All guild members appear below. Regular members can view the full guild tree, but officer note editing and alt-link management stay officer-only." ..
+            "|r")
+        treeTopY = -72
+    end
 
     -- ── Tree display ─────────────────────────────────────────────────────
     local sep2 = t:CreateTexture(nil, "ARTWORK")
     sep2:SetColorTexture(0.3, 0.3, 0.5, 0.5) sep2:SetHeight(1)
-    sep2:SetPoint("TOPLEFT",  t, "TOPLEFT",  0, -130)
-    sep2:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, -130)
+    sep2:SetPoint("TOPLEFT",  t, "TOPLEFT",  0, treeTopY + 30)
+    sep2:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, treeTopY + 30)
 
     local treeHdr = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    treeHdr:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -140)
+    treeHdr:SetPoint("TOPLEFT", t, "TOPLEFT", 10, treeTopY + 20)
     treeHdr:SetText("|cffd4af37Guild Family Tree|r")
 
     local refreshBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
     refreshBtn:SetSize(80, 22)
-    refreshBtn:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, -136)
+    refreshBtn:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, treeTopY + 24)
     refreshBtn:SetText("Refresh")
 
     -- Status label (shows counts / last scan info)
@@ -408,7 +417,7 @@ function MTR.BuildGuildTreeTab(t)
 
     -- Scroll frame
     local sf = CreateFrame("ScrollFrame", nil, t, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT",     t, "TOPLEFT",   8, -160)
+    sf:SetPoint("TOPLEFT",     t, "TOPLEFT",   8, treeTopY)
     sf:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -28, 8)
     local content = CreateFrame("Frame", nil, sf)
     content:SetWidth(sf:GetWidth() or 580)
@@ -568,7 +577,10 @@ function MTR.BuildGuildTreeTab(t)
     end
 
     t._renderTree = RenderTree
-    refreshBtn:SetScript("OnClick", RenderTree)
+    refreshBtn:SetScript("OnClick", function()
+        GuildRoster()
+        MTR.After(0.5, RenderTree)
+    end)
 
     MTR.RefreshGuildTree = function()
         if t:IsVisible() then RenderTree() end

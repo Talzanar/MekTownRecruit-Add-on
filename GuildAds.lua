@@ -107,6 +107,10 @@ end
 -- POST
 -- ============================================================================
 function GA.PostNow()
+    if not (MTR.isOfficer or MTR.isGM) then
+        MTR.MPE("Guild Ads are restricted to officers and the Guild Master.")
+        return false
+    end
     local msg = NextMessage()
     if not msg then
         MTR.MP("|cffd4af37[Guild Ads]|r No enabled messages. Add some in the Recruit tab.")
@@ -152,6 +156,10 @@ end
 -- START
 -- ============================================================================
 function GA.Start()
+    if not (MTR.isOfficer or MTR.isGM) then
+        MTR.MPE("Guild Ads are restricted to officers and the Guild Master.")
+        return
+    end
     local msgs = Msgs()
     local hasEnabled = false
     for _, m in ipairs(msgs) do
@@ -192,6 +200,10 @@ end
 -- STOP
 -- ============================================================================
 function GA.Stop()
+    if not (MTR.isOfficer or MTR.isGM) then
+        MTR.MPE("Guild Ads are restricted to officers and the Guild Master.")
+        return
+    end
     if not GA.active then return end
     GA.active = false
     MTR.TickRemove("guildads")

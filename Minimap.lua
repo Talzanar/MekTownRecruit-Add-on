@@ -52,7 +52,7 @@ function MTR.CreateMinimapButton()
         UpdateDot()
         GameTooltip:SetOwner(minimapButton, "ANCHOR_BOTTOMLEFT")
         GameTooltip:AddLine("|cff00c0ffMekTown Recruit|r  v" .. (MTR.VERSION or "8"))
-        GameTooltip:AddLine("|cffffffffLeft-click:|r Open config panel")
+        GameTooltip:AddLine((MTR.isOfficer or MTR.isGM) and "|cffffffffLeft-click:|r Open officer panel" or "|cffffffffLeft-click:|r Open member panel")
         local scanState = (MTR.db and MTR.db.enabled) and "|cff00ff00ON|r" or "|cffff4444OFF|r"
         GameTooltip:AddLine("|cffffffffRight-click:|r Toggle recruit scanner " .. scanState)
         GameTooltip:AddLine("|cffaaaaaa/mek radar  — Group Radar|r")
