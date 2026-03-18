@@ -427,16 +427,12 @@ local inviteFrame = CreateFrame("Frame")
 inviteFrame:RegisterEvent("CHAT_MSG_GUILD")
 inviteFrame:SetScript("OnEvent", function(self, event, message, sender)
     if not MTR.initialized or not MTR.db then return end
-    if MTR.db.enableGuildInvites ~= true then return end
-    if not sender or sender == "" or sender == MTR.playerName then return end
-    if type(message) ~= "string" or message == "" then return end
+    if not MTR.db.enableGuildInvites then return end
+    if sender == MTR.playerName then return end
     if not MTR.CanInvite() then return end
+    if MTR.recentInvites[sender] and (GetTime() - MTR.recentInvites[sender]) < MTR.db.inviteCooldown then return end
 
-    local cooldown = tonumber(MTR.db.inviteCooldown) or 60
-    if cooldown < 0 then cooldown = 0 end
-    if MTR.recentInvites[sender] and (GetTime() - MTR.recentInvites[sender]) < cooldown then return end
-
-    local lower = string.lower(message)
+    local lower = message:lower()
 
     -- Only proceed if message matches configured invite keywords.
     -- No bypass for short messages — the bypass was causing invites to fire
@@ -445,15 +441,69 @@ inviteFrame:SetScript("OnEvent", function(self, event, message, sender)
 
     MTR.recentInvites[sender] = GetTime()
     InviteUnit(sender)
-    if MTR.db.inviteAnnounce == true then
+    if MTR.db.inviteAnnounce then
         MTR.SendChatSafe(sender .. " has been invited to the raid/party.", "GUILD")
     end
-    if type(MTR.db.inviteWelcomeMsg) == "string" and MTR.db.inviteWelcomeMsg ~= "" then
+    if MTR.db.inviteWelcomeMsg ~= "" then
         MTR.After(3, function()
             MTR.SendChatSafe(MTR.db.inviteWelcomeMsg:gsub("{name}", sender), "WHISPER", nil, sender)
         end)
     end
     MTR.dprint("Auto-invited:", sender)
+end)
+
+
+-- ============================================================================
+-- GUILD JOIN WELCOME WHISPER
+-- ============================================================================
+local guildWelcomeRecent = {}
+
+local function ExtractGuildJoinName(message)
+    if type(message) ~= "string" or message == "" then return nil end
+
+    local patterns = {
+        "^(.+) has joined the guild%.$",
+        "^(.+) has joined the guild$",
+        "^(.+) joins the guild%.$",
+        "^(.+) joins the guild$",
+    }
+
+    for _, pat in ipairs(patterns) do
+        local name = message:match(pat)
+        if name and name ~= "" then
+            return name
+        end
+    end
+    return nil
+end
+
+local function SendGuildJoinWelcome(name)
+    if not MTR.initialized or not MTR.db then return end
+    if not (MTR.isOfficer or MTR.isGM) then return end
+    if not name or name == "" then return end
+
+    local msg = MTR.db.inviteWelcomeMsg
+    if type(msg) ~= "string" then return end
+    msg = msg:gsub("^%s+", ""):gsub("%s+$", "")
+    if msg == "" then return end
+
+    local key = string.lower(name)
+    local now = GetTime() or 0
+    if guildWelcomeRecent[key] and (now - guildWelcomeRecent[key]) < 10 then return end
+    guildWelcomeRecent[key] = now
+
+    MTR.After(2, function()
+        MTR.SendChatSafe(msg:gsub("{name}", name), "WHISPER", nil, name)
+    end)
+end
+
+local guildWelcomeFrame = CreateFrame("Frame")
+guildWelcomeFrame:RegisterEvent("CHAT_MSG_SYSTEM")
+guildWelcomeFrame:SetScript("OnEvent", function(self, event, message)
+    local name = ExtractGuildJoinName(message)
+    if name then
+        SendGuildJoinWelcome(name)
+    end
 end)
 
 -- ============================================================================
