@@ -427,12 +427,16 @@ local inviteFrame = CreateFrame("Frame")
 inviteFrame:RegisterEvent("CHAT_MSG_GUILD")
 inviteFrame:SetScript("OnEvent", function(self, event, message, sender)
     if not MTR.initialized or not MTR.db then return end
-    if not MTR.db.enableGuildInvites then return end
-    if sender == MTR.playerName then return end
+    if MTR.db.enableGuildInvites ~= true then return end
+    if not sender or sender == "" or sender == MTR.playerName then return end
+    if type(message) ~= "string" or message == "" then return end
     if not MTR.CanInvite() then return end
-    if MTR.recentInvites[sender] and (GetTime() - MTR.recentInvites[sender]) < MTR.db.inviteCooldown then return end
 
-    local lower = message:lower()
+    local cooldown = tonumber(MTR.db.inviteCooldown) or 60
+    if cooldown < 0 then cooldown = 0 end
+    if MTR.recentInvites[sender] and (GetTime() - MTR.recentInvites[sender]) < cooldown then return end
+
+    local lower = string.lower(message)
 
     -- Only proceed if message matches configured invite keywords.
     -- No bypass for short messages — the bypass was causing invites to fire
@@ -441,10 +445,10 @@ inviteFrame:SetScript("OnEvent", function(self, event, message, sender)
 
     MTR.recentInvites[sender] = GetTime()
     InviteUnit(sender)
-    if MTR.db.inviteAnnounce then
+    if MTR.db.inviteAnnounce == true then
         MTR.SendChatSafe(sender .. " has been invited to the raid/party.", "GUILD")
     end
-    if MTR.db.inviteWelcomeMsg ~= "" then
+    if type(MTR.db.inviteWelcomeMsg) == "string" and MTR.db.inviteWelcomeMsg ~= "" then
         MTR.After(3, function()
             MTR.SendChatSafe(MTR.db.inviteWelcomeMsg:gsub("{name}", sender), "WHISPER", nil, sender)
         end)

@@ -738,8 +738,14 @@ local function CreateMainWindow()
 
         mainWin._ckInvEnable   = MakeCK("InvEn",  t, "Enable auto-invite from guild chat", FIELD_X,  -116)
         mainWin._ckInvAnnounce = MakeCK("InvAnn", t, "Announce invite in guild chat",      FIELD_X, -144)
-        mainWin._ckInvEnable:SetScript("OnClick",   function(s) MTR.db.enableGuildInvites=s:GetChecked() end)
-        mainWin._ckInvAnnounce:SetScript("OnClick", function(s) MTR.db.inviteAnnounce=s:GetChecked() end)
+        mainWin._ckInvEnable:SetScript("OnClick", function(s)
+            if not MTR.db then return end
+            MTR.db.enableGuildInvites = (s:GetChecked() and true or false)
+        end)
+        mainWin._ckInvAnnounce:SetScript("OnClick", function(s)
+            if not MTR.db then return end
+            MTR.db.inviteAnnounce = (s:GetChecked() and true or false)
+        end)
 
         local lbl1 = t:CreateFontString(nil,"OVERLAY","GameFontNormal")
         lbl1:SetPoint("TOPLEFT", t, "TOPLEFT", LEFT, -182)
