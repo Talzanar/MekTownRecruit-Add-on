@@ -762,21 +762,6 @@ end
 -- ============================================================================
 -- PERMISSION CHECKS
 -- ============================================================================
-function MTR.CheckIsGM()
-    if not IsInGuild() then return false end
-    if IsGuildLeader and IsGuildLeader() then return true end
-    local num = GetNumGuildMembers() or 0
-    for i = 1, num do
-        local n, rankName, rankIndex = GetGuildRosterInfo(i)
-        if IsPlayerRosterName(n) then
-            if tonumber(rankIndex) == 0 then return true end
-            if (rankName or ""):upper() == "DA WARBOSS" then return true end
-            return false
-        end
-    end
-    return false
-end
-
 local function NormalizeRankName(rankName)
     return tostring(rankName or ""):gsub("^%s+", ""):gsub("%s+$", ""):upper()
 end
@@ -790,6 +775,21 @@ end
 local function IsPlayerRosterName(name)
     local playerShort = ShortName(MTR.playerName)
     return ShortName(name) == playerShort
+end
+
+function MTR.CheckIsGM()
+    if not IsInGuild() then return false end
+    if IsGuildLeader and IsGuildLeader() then return true end
+    local num = GetNumGuildMembers() or 0
+    for i = 1, num do
+        local n, rankName, rankIndex = GetGuildRosterInfo(i)
+        if IsPlayerRosterName(n) then
+            if tonumber(rankIndex) == 0 then return true end
+            if (rankName or ""):upper() == "DA WARBOSS" then return true end
+            return false
+        end
+    end
+    return false
 end
 
 function MTR.GetGuildRanks()
