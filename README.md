@@ -2,6 +2,12 @@ MekTownRecruit v2.0.0-beta
 
 This beta focuses on stability, cleaner access control, scalable guild tools, and release readiness for Ascension WoW 3.3.5a.
 
+
+Installation guide - 
+-Press the green CODE button and download .zip
+-Extract the contents of that file and change the folder name to MektownRecruit and place inside interface/addons folder
+-Reload game & Enjoy
+
 Highlights
 - Standardized settings persistence for critical Guild tab controls
 - Simplified sync identity to guild key only: realm|guildName
