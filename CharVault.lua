@@ -7,6 +7,8 @@
 -- Storage (MekTownRecruitDB.charVault["Name-Realm"]):
 --   meta        — name, realm, class, race, level, zone, gold, avgIlvl, lastSeen
 --   items       — { [itemID] = {bags=N, bank=N, mail=N} }  ← compact, never stale
+--   itemLinks   — { [itemID] = itemLink }                     ← preserves exact hyperlink for UI
+--   itemTextures— { [itemID] = texturePath }                  ← avoids ? icons on uncached clients
 --   professions — array of { name, rank, max, primary }
 --   gear        — { [slotID] = {link, ilvl} }
 --
@@ -75,11 +77,13 @@ local function EnsureEntry(key, name, realm)
     if not MekTownRecruitDB.charVault[key] then
         MekTownRecruitDB.charVault[key] = {
             key=key, name=name, realm=realm,
-            meta={}, items={}, professions={}, gear={},
+            meta={}, items={}, itemLinks={}, itemTextures={}, professions={}, gear={},
         }
     end
     local e = MekTownRecruitDB.charVault[key]
     if not e.items       then e.items       = {} end
+    if not e.itemLinks   then e.itemLinks   = {} end
+    if not e.itemTextures then e.itemTextures = {} end
     if not e.professions then e.professions = {} end
     if not e.gear        then e.gear        = {} end
     if not e.meta        then e.meta        = {} end
@@ -137,71 +141,90 @@ end
 
 -- Core bag scanner — returns { [itemID] = count } for bags 0-4
 local function ScanBagItems()
-    local counts = {}
+    local counts, links, textures = {}, {}, {}
     for bag = 0, 4 do
         for slot = 1, GetContainerNumSlots(bag) do
-            local _, qty, _, _, _, _, link = GetContainerItemInfo(bag, slot)
+            local texture, qty, _, _, _, _, link = GetContainerItemInfo(bag, slot)
             local id = ToItemID(link)
             if id and qty and qty > 0 then
                 counts[id] = (counts[id] or 0) + qty
+                if link and not links[id] then links[id] = link end
+                if texture and not textures[id] then textures[id] = texture end
             end
         end
     end
-    return counts
+    return { counts = counts, links = links, textures = textures }
 end
 
--- Core bank scanner — returns { [itemID] = count }
+-- Core bank scanner — returns item counts plus link/texture metadata
 -- Only valid when BANKFRAME_OPENED has fired (bank bags aren't loaded otherwise)
 local function ScanBankItems()
-    local counts = {}
+    local counts, links, textures = {}, {}, {}
     for bag = -1, 11 do
         for slot = 1, GetContainerNumSlots(bag) do
-            local _, qty, _, _, _, _, link = GetContainerItemInfo(bag, slot)
+            local texture, qty, _, _, _, _, link = GetContainerItemInfo(bag, slot)
             local id = ToItemID(link)
             if id and qty and qty > 0 then
                 counts[id] = (counts[id] or 0) + qty
+                if link and not links[id] then links[id] = link end
+                if texture and not textures[id] then textures[id] = texture end
             end
         end
     end
-    return counts
+    return { counts = counts, links = links, textures = textures }
 end
 
--- Core mail scanner — returns { [itemID] = count }
+-- Core mail scanner — returns item counts plus link/texture metadata
 -- Only valid inside MAIL_INBOX_OPENED callback
 local function ScanMailItems()
-    local counts = {}
+    local counts, links, textures = {}, {}, {}
     local num = GetInboxNumItems()
     for i = 1, num do
         for att = 1, ATTACHMENTS_MAX_RECEIVE do
             local link = GetInboxItemLink(i, att)
-            local _, _, _, qty = GetInboxItem(i, att)
+            local _, _, texture, qty = GetInboxItem(i, att)
             local id = ToItemID(link)
             if id and qty and qty > 0 then
                 counts[id] = (counts[id] or 0) + qty
+                if link and not links[id] then links[id] = link end
+                if texture and not textures[id] then textures[id] = texture end
             end
         end
     end
-    return counts
+    return { counts = counts, links = links, textures = textures }
 end
 
 -- Merge a partial scan (bags/bank/mail) into the entry's items table
 -- slotKey is "bags", "bank", or "mail"
-local function MergeItems(entry, slotKey, newCounts)
+local function MergeItems(entry, slotKey, payload)
+    local newCounts = payload
+    local newLinks, newTextures = nil, nil
+    if type(payload) == "table" and payload.counts then
+        newCounts = payload.counts or {}
+        newLinks = payload.links or {}
+        newTextures = payload.textures or {}
+    end
+    entry.itemLinks = entry.itemLinks or {}
+    entry.itemTextures = entry.itemTextures or {}
     -- First zero out all existing entries for this slot type
     for id, slots in pairs(entry.items) do
         slots[slotKey] = 0
     end
     -- Write new values
-    for id, qty in pairs(newCounts) do
+    for id, qty in pairs(newCounts or {}) do
         if not entry.items[id] then
             entry.items[id] = { bags=0, bank=0, mail=0 }
         end
         entry.items[id][slotKey] = qty
+        if newLinks and newLinks[id] then entry.itemLinks[id] = newLinks[id] end
+        if newTextures and newTextures[id] then entry.itemTextures[id] = newTextures[id] end
     end
     -- Prune entries where everything is zero
     for id, slots in pairs(entry.items) do
         if (slots.bags or 0) == 0 and (slots.bank or 0) == 0 and (slots.mail or 0) == 0 then
             entry.items[id] = nil
+            if entry.itemLinks then entry.itemLinks[id] = nil end
+            if entry.itemTextures then entry.itemTextures[id] = nil end
         end
     end
 end
@@ -360,9 +383,11 @@ local function ScanGuildBank()
                 count = tonumber(count) or 1
                 local name = GetItemInfo(link)
                 if name then
+                    local texture = select(10, GetItemInfo(link))
                     items[#items+1] = {
                         name    = name,
                         link    = link,
+                        texture = texture,
                         count   = count,
                         tab     = tab,
                         tabName = tabName,
@@ -517,6 +542,7 @@ gbRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
                     -- Reconstruct a minimal item link from the ID so IconSetItem
                     -- can call GetItemInfo(link) and resolve the icon texture.
                     link    = iid and ("|cffffffff|Hitem:"..iid..":0:0:0:0:0:0:0|h["..name.."]|h|r") or nil,
+                    texture = nil,
                 }
             end
         end

@@ -165,7 +165,7 @@ local function IconHideFrom(content, n)
 end
 
 -- Populate an icon button with item data
-local function IconSetItem(btn, itemID, qty, link)
+local function IconSetItem(btn, itemID, qty, link, textureOverride)
     if not itemID and not link then
         btn._tex:SetTexture(EMPTY_ICON)
         btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
@@ -175,8 +175,9 @@ local function IconSetItem(btn, itemID, qty, link)
     end
 
     local name, ilink, quality, _, _, _, _, _, _, texture = GetItemInfo(itemID or link or 0)
+    texture = texture or textureOverride
 
-    -- Texture: use item icon, fall back to question mark while client fetches
+    -- Texture: use cached item icon when available, then saved scan texture, then question mark
     btn._tex:SetTexture(texture or EMPTY_ICON)
 
     -- Quality border
@@ -428,7 +429,9 @@ local function BuildBrowseBags(t)
                     elseif filter=="Bank"  then qty=slots.bank or 0
                     elseif filter=="Mail"  then qty=slots.mail or 0 end
                     local name,link,quality,_,_,_,_,_,_,tex = GetItemInfo(id)
-                    items[#items+1]={id=id,qty=qty,name=name or "",link=link,quality=quality,tex=tex}
+                    local savedLink = entry.itemLinks and entry.itemLinks[id] or nil
+                    local savedTex  = entry.itemTextures and entry.itemTextures[id] or nil
+                    items[#items+1]={id=id,qty=qty,name=name or "",link=link or savedLink,quality=quality,tex=tex or savedTex}
                 end
             end
 
@@ -453,7 +456,7 @@ local function BuildBrowseBags(t)
             for i,item in ipairs(items) do
                 local btn=IconGet(c2,i)
                 IconPlace(btn,c2,i)
-                IconSetItem(btn,item.id,item.qty,item.link)
+                IconSetItem(btn,item.id,item.qty,item.link,item.tex)
                 -- Detail strip update on hover
                 local id2,name2=item.id,item.name
                 btn._onHover=function(self)
@@ -1179,7 +1182,7 @@ local function BuildGuildBank(t)
             local btn = IconGet(c, i)
             IconPlace(btn, c, i)
             local id = r.itemID or (r.link and tonumber(r.link:match("item:(%d+)"))) or nil
-            IconSetItem(btn, id, r.count, r.link)
+            IconSetItem(btn, id, r.count, r.link, r.texture)
             btn._cnt:SetText(r.count and r.count > 1 and r.count or "")
             local n2 = r.name
             local tab2 = r.tabName or ("Tab " .. (r.tab or "?"))

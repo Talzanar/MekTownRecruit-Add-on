@@ -764,14 +764,14 @@ end
 -- ============================================================================
 function MTR.CheckIsGM()
     if not IsInGuild() then return false end
-    if IsGuildLeader() then return true end
-    local num = GetNumGuildMembers()
+    if IsGuildLeader and IsGuildLeader() then return true end
+    local num = GetNumGuildMembers() or 0
     for i = 1, num do
         local n, rankName, rankIndex = GetGuildRosterInfo(i)
-        if n == MTR.playerName then
-            -- Rank index 0 = Guild Master, OR rank name is "DA WARBOSS"
-            if rankIndex == 0 then return true end
+        if IsPlayerRosterName(n) then
+            if tonumber(rankIndex) == 0 then return true end
             if (rankName or ""):upper() == "DA WARBOSS" then return true end
+            return false
         end
     end
     return false
@@ -779,6 +779,17 @@ end
 
 local function NormalizeRankName(rankName)
     return tostring(rankName or ""):gsub("^%s+", ""):gsub("%s+$", ""):upper()
+end
+
+local function ShortName(name)
+    local n = tostring(name or "")
+    n = n:gsub("%-.*$", "")
+    return n
+end
+
+local function IsPlayerRosterName(name)
+    local playerShort = ShortName(MTR.playerName)
+    return ShortName(name) == playerShort
 end
 
 function MTR.GetGuildRanks()
@@ -930,12 +941,13 @@ end
 
 function MTR.CheckIsOfficer()
     if not IsInGuild() then return false end
-    if MTR.isGM then return true end
+    if MTR.CheckIsGM and MTR.CheckIsGM() then return true end
     local num = GetNumGuildMembers() or 0
     for i = 1, num do
         local n, rankName, rankIndex = GetGuildRosterInfo(i)
-        if n == MTR.playerName then
+        if IsPlayerRosterName(n) then
             if tonumber(rankIndex) == 1 then return true end
+            if MTR.IsConfiguredOfficerRank and MTR.IsConfiguredOfficerRank(rankName) then return true end
             local nameKey = NormalizeRankName(rankName)
             if nameKey:find("OFFIC", 1, true) or nameKey:find("ADMIN", 1, true) or nameKey:find("LEAD", 1, true) or nameKey:find("CO%-GM") or nameKey:find("COGM", 1, true) then
                 return true
@@ -952,7 +964,7 @@ function MTR.GetPlayerRankName()
     local num = GetNumGuildMembers() or 0
     for i = 1, num do
         local n, rankName = GetGuildRosterInfo(i)
-        if n == MTR.playerName then
+        if IsPlayerRosterName(n) then
             return rankName
         end
     end

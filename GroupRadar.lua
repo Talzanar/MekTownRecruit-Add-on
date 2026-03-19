@@ -278,6 +278,40 @@ local function ShowLFMTextAlert(sender, message)
 end
 
 -- ============================================================================
+-- GROUP RADAR POPUP SKIN
+-- 3.3.5-safe backdrop helper: always provide BOTH bgFile and edgeFile.
+-- Ascension clients can be picky about border-only backdrops; using a real
+-- bgFile avoids invisible/partial panels and keeps SetBackdropColor working.
+-- ============================================================================
+local GR_POPUP_BACKDROP = {
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true,
+    tileSize = 16,
+    edgeSize = 32,
+    insets = { left = 8, right = 8, top = 8, bottom = 8 },
+}
+
+local function ApplyGroupRadarBackdrop(f)
+    if not f or not f.SetBackdrop then return end
+
+    f:SetBackdrop(GR_POPUP_BACKDROP)
+    f:SetBackdropColor(0.04, 0.01, 0.01, 0.97)
+    f:SetBackdropBorderColor(1, 1, 1, 1)
+
+    if not f._grBG then
+        local bg = f:CreateTexture(nil, "BACKGROUND")
+        bg:SetTexture("Interface\\Buttons\\WHITE8x8")
+        bg:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -8)
+        bg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 8)
+        bg:SetVertexColor(0.02, 0.03, 0.05, 0.95)
+        f._grBG = bg
+    end
+    f._grBG:SetDrawLayer("BACKGROUND", 0)
+    f._grBG:Show()
+end
+
+-- ============================================================================
 -- GROUP RADAR POPUP ALERT  (distinct from Recruit popup)
 -- ============================================================================
 local function ShowLFMAlert(sender, message, categoryText)
@@ -295,18 +329,7 @@ local function ShowLFMAlert(sender, message, categoryText)
     local f = CreateFrame("Frame", nil, UIParent)
     f:SetSize(330, 164)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 240)
-    f:SetBackdrop({
-        bgFile="",
-        edgeFile="Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile=false,tileSize=0,edgeSize=32,insets={left=8,right=8,top=8,bottom=8},
-    })
-    f:SetBackdropColor(0,0,0,0)
-    do
-        local _bt=f:CreateTexture(nil,"BACKGROUND")
-        _bt:SetTexture("Interface\Buttons\WHITE8x8")
-        _bt:SetAllPoints(f)
-        _bt:SetVertexColor(0.02,0.03,0.05,0.97)
-    end
+    ApplyGroupRadarBackdrop(f)
     f:SetFrameStrata("DIALOG")
     f:EnableMouse(true)
     f:SetMovable(true)
@@ -695,12 +718,7 @@ function GR.ShowDetailFrame()
         local f=CreateFrame("Frame","MekTownGRDetailFrame",UIParent)
         f:SetSize(620,440) f:SetPoint("CENTER",0,-40)
         f:SetToplevel(true)
-        f:SetBackdrop({bgFile="",
-            edgeFile="Interface\\\\DialogFrame\\\\UI-DialogBox-Border",
-            tile=false,tileSize=0,edgeSize=32,insets={left=8,right=8,top=8,bottom=8}})
-        f:SetBackdropColor(0,0,0,0)
-        do local _bt=f:CreateTexture(nil,"BACKGROUND")
-        _bt:SetTexture("Interface\\Buttons\\WHITE8x8") _bt:SetAllPoints(f) _bt:SetVertexColor(0.04,0.01,0.01,0.97) end
+        ApplyGroupRadarBackdrop(f)
         f:SetFrameStrata("DIALOG") f:EnableMouse(true) f:SetMovable(true)
         f:RegisterForDrag("LeftButton")
         f:SetScript("OnDragStart",f.StartMoving) f:SetScript("OnDragStop",f.StopMovingOrSizing)
@@ -822,12 +840,7 @@ function GR.ShowFindGroupFrame()
 
     local f=CreateFrame("Frame","MekTownGRFindGroup",UIParent)
     f:SetSize(350,255) f:SetPoint("CENTER")
-    f:SetBackdrop({bgFile="",
-        edgeFile="Interface\\\\DialogFrame\\\\UI-DialogBox-Border",
-        tile=false,tileSize=0,edgeSize=32,insets={left=8,right=8,top=8,bottom=8}})
-    f:SetBackdropColor(0,0,0,0)
-    do local _bt=f:CreateTexture(nil,"BACKGROUND")
-    _bt:SetTexture("Interface\\Buttons\\WHITE8x8") _bt:SetAllPoints(f) _bt:SetVertexColor(0.04,0.01,0.01,0.97) end
+    ApplyGroupRadarBackdrop(f)
     f:SetFrameStrata("DIALOG") f:EnableMouse(true) f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart",f.StartMoving) f:SetScript("OnDragStop",f.StopMovingOrSizing)

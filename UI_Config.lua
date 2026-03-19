@@ -435,22 +435,22 @@ local function CreateMainWindow()
         local accessSep = t:CreateTexture(nil,"ARTWORK")
         accessSep:SetColorTexture(0.3,0.3,0.5,0.5)
         accessSep:SetHeight(1)
-        accessSep:SetPoint("TOPLEFT",t,"TOPLEFT",0,-190)
-        accessSep:SetPoint("TOPRIGHT",t,"TOPRIGHT",0,-190)
+        accessSep:SetPoint("TOPLEFT", noteLbl, "BOTTOMLEFT", -10, -14)
+        accessSep:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, 0)
 
         local accessHdr = t:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-        accessHdr:SetPoint("TOPLEFT",t,"TOPLEFT",10,-210)
+        accessHdr:SetPoint("TOPLEFT", accessSep, "BOTTOMLEFT", 10, -18)
         accessHdr:SetText("|cffff2020Access & Permissions|r")
 
         local accessDesc = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
-        accessDesc:SetPoint("TOPLEFT",t,"TOPLEFT",10,-236)
+        accessDesc:SetPoint("TOPLEFT", accessHdr, "BOTTOMLEFT", 0, -10)
         accessDesc:SetWidth(760)
         accessDesc:SetWordWrap(true)
         accessDesc:SetJustifyH("LEFT")
         accessDesc:SetText("|cffaaaaaaRelease access model: guild-management tools are officer-only. Guild Ads, Recruit, DKP write actions, Loot / auction administration, and Inactivity / kick controls are restricted to officers and the Guild Master. Member utility tools such as Group Radar and Vault remain available through the member panel.|r")
 
         local statusLbl = t:CreateFontString(nil,"OVERLAY","GameFontHighlight")
-        statusLbl:SetPoint("TOPLEFT",t,"TOPLEFT",10,-286)
+        statusLbl:SetPoint("TOPLEFT", accessDesc, "BOTTOMLEFT", 0, -14)
         statusLbl:SetWidth(760)
         statusLbl:SetWordWrap(true)
         statusLbl:SetJustifyH("LEFT")
@@ -464,7 +464,7 @@ local function CreateMainWindow()
         end
 
         local rulesLbl = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
-        rulesLbl:SetPoint("TOPLEFT",t,"TOPLEFT",10,-320)
+        rulesLbl:SetPoint("TOPLEFT", statusLbl, "BOTTOMLEFT", 0, -14)
         rulesLbl:SetWidth(760)
         rulesLbl:SetWordWrap(true)
         rulesLbl:SetJustifyH("LEFT")
@@ -485,12 +485,92 @@ local function CreateMainWindow()
             MTR.AttachTooltip(profDel, "Delete Profile", "Delete the active profile. Default cannot be removed.")
         end
 
-        mainWin._refreshOfficerRankUI = nil
+        local officerHdr = t:CreateFontString(nil,"OVERLAY","GameFontNormal")
+        officerHdr:SetPoint("TOPLEFT", rulesLbl, "BOTTOMLEFT", 0, -20)
+        officerHdr:SetText("|cffd4af37Officer Ranks|r")
+
+        local officerDesc = t:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
+        officerDesc:SetPoint("TOPLEFT", officerHdr, "BOTTOMLEFT", 0, -10)
+        officerDesc:SetWidth(780)
+        officerDesc:SetWordWrap(true)
+        officerDesc:SetJustifyH("LEFT")
+        officerDesc:SetText("|cffaaaaaaGuild Masters can choose which guild ranks count as officer access for MekTown guild-control tools. Changes apply immediately after Save/Refresh and affect access to the officer panel, Recruit, DKP write actions, Loot admin, and kick tools.|r")
+
+        local rankContainer = CreateFrame("Frame", nil, t)
+        rankContainer:SetPoint("TOPLEFT", officerDesc, "BOTTOMLEFT", 0, -18)
+        rankContainer:SetSize(790, 120)
+        local officerRows = {}
+
+        local function RefreshOfficerRankUI()
+            for _, row in ipairs(officerRows) do row:Hide() end
+            local ranks = (MTR.GetGuildRanks and MTR.GetGuildRanks()) or {}
+            local y = 0
+            for i, info in ipairs(ranks) do
+                local row = officerRows[i]
+                if not row then
+                    row = CreateFrame("CheckButton", nil, rankContainer, "UICheckButtonTemplate")
+                    row:SetSize(24,24)
+                    local label = rankContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    label:SetPoint("LEFT", row, "RIGHT", 4, 1)
+                    row._label = label
+                    officerRows[i] = row
+                end
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", rankContainer, "TOPLEFT", 0, y)
+                row._rankName = info.name
+                row._label:SetText((tonumber(info.index) == 0 and "|cff00ff00[GM]|r " or "") .. tostring(info.name))
+                row:SetChecked(MTR.IsConfiguredOfficerRank and MTR.IsConfiguredOfficerRank(info.name) or false)
+                local canEdit = (MTR.isGM == true and tonumber(info.index) ~= 0)
+                row:EnableMouse(canEdit)
+                row:SetAlpha(canEdit and 1 or 0.65)
+                row:SetScript("OnClick", function(self)
+                    if not MTR.isGM then
+                        self:SetChecked(MTR.IsConfiguredOfficerRank and MTR.IsConfiguredOfficerRank(self._rankName) or false)
+                        MPE("GM only.")
+                        return
+                    end
+                    MTR.SetOfficerRank(self._rankName, self:GetChecked() and true or false)
+                    MTR.isGM = MTR.CheckIsGM()
+                    MTR.isOfficer = MTR.CheckIsOfficer()
+                    if statusLbl then
+                        if MTR.isGM then
+                            statusLbl:SetText("|cff00ff00Current access: Guild Master|r")
+                        elseif MTR.isOfficer then
+                            statusLbl:SetText("|cff00ff00Current access: Officer|r")
+                        else
+                            local rankName = (MTR.GetPlayerRankName and MTR.GetPlayerRankName()) or "Unguilded"
+                            statusLbl:SetText("|cffffff88Current access: Member|r  |cffaaaaaa(" .. tostring(rankName) .. ")|r")
+                        end
+                    end
+                    MP("Officer rank updated: " .. tostring(self._rankName))
+                end)
+                row:Show()
+                y = y - 22
+            end
+            rankContainer:SetHeight(max(120, -y + 8))
+            content:SetHeight(max(700, 860 - y))
+        end
+
+        local guessBtn = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
+        guessBtn:SetSize(170, 22)
+        guessBtn:SetPoint("LEFT", officerHdr, "RIGHT", 430, 0)
+        guessBtn:SetText("Auto-detect Officer Ranks")
+        guessBtn:SetScript("OnClick", function()
+            if not MTR.isGM then MPE("GM only.") return end
+            local count = MTR.ApplyOfficerRankSuggestions and MTR.ApplyOfficerRankSuggestions(true) or 0
+            MTR.isGM = MTR.CheckIsGM()
+            MTR.isOfficer = MTR.CheckIsOfficer()
+            RefreshOfficerRankUI()
+            MP("Officer ranks updated (" .. tostring(count) .. " detected).")
+        end)
+
+        mainWin._refreshOfficerRankUI = RefreshOfficerRankUI
         mainWin._refreshFeatureAccessUI = nil
         if MTR.initialized then
             RebuildPDD()
+            RefreshOfficerRankUI()
         end
-        content:SetHeight(460)
+        content:SetHeight(760)
     end
 
     -- =========================================================================
@@ -2143,6 +2223,9 @@ end
 -- PUBLIC ENTRY POINT
 -- ============================================================================
 function MTR.OpenConfig()
+    if IsInGuild() then GuildRoster() end
+    if MTR.CheckIsGM then MTR.isGM = MTR.CheckIsGM() end
+    if MTR.CheckIsOfficer then MTR.isOfficer = MTR.CheckIsOfficer() end
     if not (MTR.isOfficer or MTR.isGM) then
         if MTR.OpenMemberWindow then
             MTR.OpenMemberWindow()
