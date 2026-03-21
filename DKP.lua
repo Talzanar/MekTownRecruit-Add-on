@@ -720,6 +720,20 @@ lsFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
     elseif unpacked:sub(1, 7) == "LS:MET:" then
         local src, rev, hash, playerCount, entryCount =
             unpacked:match("^LS:MET:([^:]*):([^:]*):([^:]*):([^:]*):([^:]*)$")
+        
+        -- Auto-clear conflict if header hash matches local hash
+        if hash then
+            local st = EnsureSyncStateFresh()
+            if tostring(hash) == tostring(st.hash or "0") then
+                st.lastConflictReason = nil
+                st.lastConflictFrom = nil
+                -- Adopt higher revision if hashes match
+                if rev and tonumber(rev) > tonumber(st.revision or 0) then
+                    st.revision = tonumber(rev)
+                end
+            end
+        end
+
         lsRecv = {
             sender = src ~= "" and src or senderName,
             revision = tonumber(rev) or 0,
@@ -786,6 +800,8 @@ lsFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         st.entryCount = entries
         st.lastFullSyncAt = time()
         st.lastFullSyncFrom = lsRecv.sender or ""
+        st.lastConflictReason = nil
+        st.lastConflictFrom = nil
         if MTR.SendGuildScoped then MTR.SendGuildScoped(LS_PREFIX, string.format("LS:ACK:%s:%s:%d",
             SanitizeField(MTR.playerName or ""),
             receivedHash,
@@ -802,9 +818,13 @@ lsFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         local peer, hash, rev = unpacked:match("^LS:ACK:([^:]+):([^:]+):([^:]+)$")
         local st = EnsureSyncStateFresh()
         if hash == (st.hash or "0") then
+            local r = tonumber(rev) or 0
+            if r > tonumber(st.revision or 0) then
+                st.revision = r
+            end
             st.lastAckByPeer = st.lastAckByPeer or {}
             st.lastAckByPeer[peer or senderName or "?"] = {
-                revision = tonumber(rev) or 0,
+                revision = r,
                 at = time(),
             }
             MTR.dprint("[DKP Snapshot] ACK from", peer or senderName or "?", "rev", rev or "?")

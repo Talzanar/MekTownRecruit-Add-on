@@ -138,6 +138,20 @@ rhFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
     elseif unpacked:sub(1, 7) == "RH:MET:" then
         if MTR.IsGuildOfficerName and not MTR.IsGuildOfficerName(senderName) then return end
         local rev, hash = unpacked:match("^RH:MET:([^:]+):([^:]+):")
+        
+        -- Auto-clear conflict if header hash matches local hash
+        if hash then
+            local st = RHState()
+            if tostring(hash) == tostring(st.hash or "0") then
+                st.lastConflictReason = nil
+                st.lastConflictFrom = nil
+                -- Adopt higher revision if hashes match
+                if rev and tonumber(rev) > tonumber(st.revision or 0) then
+                    st.revision = tonumber(rev)
+                end
+            end
+        end
+
         rhRecv = { rev = tonumber(rev) or 0, hash = hash or "0", chunks = {}, from = senderName }
         return
     elseif unpacked:sub(1, 5) == "RH:D:" and rhRecv then
@@ -187,8 +201,10 @@ rhFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         local peer, hash, rev = unpacked:match("^RH:ACK:([^:]+):([^:]+):([^:]+)$")
         local st = RHState()
         if tostring(hash or "") == tostring(st.hash or "0") then
+            local r = tonumber(rev) or 0
+            if r > tonumber(st.revision or 0) then st.revision = r end
             st.lastAckByPeer = st.lastAckByPeer or {}
-            st.lastAckByPeer[peer or senderName or "?"] = { revision = tonumber(rev) or 0, at = time() }
+            st.lastAckByPeer[peer or senderName or "?"] = { revision = r, at = time() }
         end
         return
     end

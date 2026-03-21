@@ -78,7 +78,7 @@ initFrame:SetScript("OnEvent",function(self,event)
         end
     end)
 
-    print("|cff00c0ff[MekTown Recruit]|r v"..tostring(MTR.VERSION or "2.0.0").." Ready — profile |cffffff00"..
+    print("|cff00c0ff[MekTown Recruit]|r v"..tostring(MTR.VERSION or "2.1.1-pre").." Ready — profile |cffffff00"..
         MekTownRecruitDB.activeProfile.."|r  |cffaaaaaa("..
         #MTR.db.keywords.." recruit keywords · "..
         #MTR.db.whisperTemplates.." whisper templates · /mek help)|r")

@@ -1525,7 +1525,7 @@ function MTR.OpenCharVault()
         vTitleEdge:SetPoint("TOPRIGHT", vaultWin, "TOPRIGHT", -9, -26)
         local hdr=vaultWin:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
         hdr:SetPoint("TOPLEFT",vaultWin,"TOPLEFT",12,-7)
-        hdr:SetText("|cffff2020MekTown|r  |cffd4af37\226\152\133 Vault|r  |cffaaaaaa v"..(MTR.VERSION or "2.0.0-beta").."|r")
+        hdr:SetText("|cffff2020MekTown|r  |cffd4af37\226\152\133 Vault|r  |cffaaaaaa v"..(MTR.VERSION or "2.1.1-pre").."|r")
 
         local sub=vaultWin:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
         sub:SetPoint("TOPLEFT",vaultWin,"TOPLEFT",10,-32)

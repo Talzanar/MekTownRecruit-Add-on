@@ -8,7 +8,7 @@ MekTown Recruit combines recruiting, DKP, attendance, guild bank history, group-
 
 ## Version
 
-- Addon version: `2.0.0`
+- Addon version: `2.1.1-pre`
 - Interface: `30300`
 - SavedVariables: `MekTownRecruitDB`
 
@@ -174,7 +174,7 @@ Note: Blizzard's legacy 3.3.5 API does not always provide exact absolute timesta
 See also:
 
 - `LAUNCHER_RELEASE_CHECKLIST.md`
-- `RELEASE_NOTES_2.0.0.md`
+- `RELEASE_NOTES_2.1.1_PRERELEASE.md`
 
 ## Credits
 

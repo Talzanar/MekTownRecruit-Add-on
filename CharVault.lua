@@ -433,11 +433,11 @@ local function GBHashFromItems(items)
     local parts = {}
     for _, item in ipairs(items or {}) do
         local iid = item.itemID or (item.link and tonumber((item.link or ""):match("item:(%d+)"))) or 0
-        local nm = tostring(item.name or item.itemName or "?"):gsub("|", ""):gsub(",", "")
+        -- Do not hash by item display name because GetItemInfo/local cache timing
+        -- can differ across clients and cause false hash mismatches.
         parts[#parts + 1] = table.concat({
             tostring(tonumber(item.tab) or 0),
             tostring(tonumber(iid) or 0),
-            nm,
             tostring(tonumber(item.count) or 0)
         }, "|")
     end
@@ -606,8 +606,10 @@ end)
 -- Receive guild bank snapshot from another player
 local gbRecvBuf    = nil
 local gbRecvSender = nil
+local gbRecvFrom   = nil
 local gbRecvRev    = nil
 local gbRecvHash   = nil
+local gbRecvExpected = nil
 local gbRecvFrame  = CreateFrame("Frame")
 gbRecvFrame:RegisterEvent("CHAT_MSG_ADDON")
 gbRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
@@ -619,11 +621,26 @@ gbRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
 
     if unpacked:sub(1, 5) == "GB:S:" then
         gbRecvBuf    = {}
-        local by, rev, hash = unpacked:match("^GB:S:([^:]*):([^:]*):([^:]*):")
+        local by, rev, hash, expected = unpacked:match("^GB:S:([^:]*):([^:]*):([^:]*):([^:]*)")
         gbRecvSender = by or unpacked:sub(6)
+        gbRecvFrom = senderName
         gbRecvRev = tonumber(rev) or nil
         gbRecvHash = (hash and hash ~= "") and hash or nil
+        gbRecvExpected = tonumber(expected) or nil
         if gbRecvSender == "" then gbRecvSender = senderName end
+
+        -- Auto-clear conflict if header hash matches local hash
+        if gbRecvHash then
+            local st = GBSyncState()
+            if tostring(gbRecvHash) == tostring(st.hash or "0") then
+                st.lastConflictReason = nil
+                st.lastConflictFrom = nil
+                -- Adopt higher revision if hashes match
+                if gbRecvRev and gbRecvRev > tonumber(st.revision or 0) then
+                    st.revision = gbRecvRev
+                end
+            end
+        end
 
     elseif unpacked:sub(1, 7) == "GB:REQ:" then
         local _, peerHash = unpacked:match("^GB:REQ:([^:]*):?(.*)$")
@@ -636,11 +653,16 @@ gbRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         local peer, hash, rev = unpacked:match("^GB:ACK:([^:]+):([^:]+):([^:]+)$")
         local st = GBSyncState()
         if tostring(hash or "") == tostring(st.hash or "0") then
+            local r = tonumber(rev) or 0
+            if r > tonumber(st.revision or 0) then st.revision = r end
             st.lastAckByPeer = st.lastAckByPeer or {}
-            st.lastAckByPeer[peer or senderName or "?"] = { revision = tonumber(rev) or 0, at = time() }
+            st.lastAckByPeer[peer or senderName or "?"] = { revision = r, at = time() }
+            st.lastConflictReason = nil
+            st.lastConflictFrom = nil
         end
 
     elseif unpacked:sub(1, 5) == "GB:D:" and gbRecvBuf then
+        if gbRecvFrom and senderName ~= gbRecvFrom then return end
         local d = unpacked:sub(6)
         for token in d:gmatch("[^,]+") do
             -- New format (v1.1.1+): "tab|itemID|name|count"
@@ -669,10 +691,18 @@ gbRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         end
 
     elseif unpacked:sub(1, 5) == "GB:E:" and gbRecvBuf then
+        if gbRecvFrom and senderName ~= gbRecvFrom then return end
         local ts = unpacked:sub(6)
         -- Don't overwrite with our own broadcast echo
         if senderName ~= MTR.playerName then
             local st = GBSyncState()
+            if (tonumber(gbRecvExpected) or 0) > 0 and #gbRecvBuf <= 0 then
+                st.lastConflictAt = time()
+                st.lastConflictFrom = tostring(gbRecvSender or senderName or "?")
+                st.lastConflictReason = "incomplete-stream"
+                gbRecvBuf, gbRecvSender, gbRecvFrom, gbRecvRev, gbRecvHash, gbRecvExpected = nil, nil, nil, nil, nil, nil
+                return
+            end
             local ok = true
             st.lastRevByPeer = st.lastRevByPeer or {}
             local hashMismatch = false
@@ -707,8 +737,10 @@ gbRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         end
         gbRecvBuf    = nil
         gbRecvSender = nil
+        gbRecvFrom   = nil
         gbRecvRev    = nil
         gbRecvHash   = nil
+        gbRecvExpected = nil
     end
 end)
 
@@ -726,8 +758,10 @@ GBL.RETAIN_DAYS = 30
 GBL.MAX_ENTRIES = 5000
 
 local gblRecvBuf = nil
+local gblRecvFrom = nil
 local gblRecvRev = nil
 local gblRecvHash = nil
+local gblRecvExpected = nil
 
 local function GBL_DB()
     local gs = MTR.GetGuildStore and MTR.GetGuildStore(true) or MekTownRecruitDB
@@ -1389,7 +1423,12 @@ end
 local function GBL_HashEntries(entries)
     local tokens = {}
     for _, e in ipairs(entries or {}) do
-        tokens[#tokens + 1] = GBL_EntryToToken(e)
+        local txid = GBL_EnsureTxId(e)
+        if txid ~= "" then
+            tokens[#tokens + 1] = "txid#" .. tostring(txid)
+        else
+            tokens[#tokens + 1] = "fp#" .. tostring(GBL_Fingerprint(e))
+        end
     end
     table.sort(tokens)
     local raw = table.concat(tokens, ";")
@@ -1921,24 +1960,52 @@ gblRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         local peer, hash, rev = unpacked:match("^GL:ACK:([^:]+):([^:]+):([^:]+)$")
         local ss = GBL_SyncState()
         if tostring(hash or "") == tostring(ss.hash or "0") then
+            local r = tonumber(rev) or 0
+            if r > tonumber(ss.revision or 0) then ss.revision = r end
             ss.lastAckByPeer = ss.lastAckByPeer or {}
-            ss.lastAckByPeer[peer or senderName or "?"] = { revision = tonumber(rev) or 0, at = time() }
+            ss.lastAckByPeer[peer or senderName or "?"] = { revision = r, at = time() }
+            ss.lastConflictReason = nil
+            ss.lastConflictFrom = nil
         end
     elseif unpacked:sub(1, 5) == "GL:S:" then
         gblRecvBuf = {}
-        local _, _, _, _, rev, hash = unpacked:match("^GL:S:([^:]*):([^:]*):([^:]*):([^:]*):?([^:]*):?(.*)$")
+        local _, count, _, _, rev, hash = unpacked:match("^GL:S:([^:]*):([^:]*):([^:]*):([^:]*):?([^:]*):?(.*)$")
+        gblRecvFrom = senderName
         gblRecvRev = tonumber(rev) or nil
         gblRecvHash = (hash and hash ~= "") and hash or nil
+        gblRecvExpected = tonumber(count) or nil
+
+        -- Auto-clear conflict if header hash matches local hash
+        if gblRecvHash then
+            local ss = GBL_SyncState()
+            if tostring(gblRecvHash) == tostring(ss.hash or "0") then
+                ss.lastConflictReason = nil
+                ss.lastConflictFrom = nil
+                -- Adopt higher revision if hashes match
+                if gblRecvRev and gblRecvRev > tonumber(ss.revision or 0) then
+                    ss.revision = gblRecvRev
+                end
+            end
+        end
     elseif unpacked:sub(1, 5) == "GL:D:" and gblRecvBuf then
+        if gblRecvFrom and senderName ~= gblRecvFrom then return end
         local d = unpacked:sub(6)
         for token in d:gmatch("[^;]+") do
             local e = GBL_TokenToEntry(token)
             if e then gblRecvBuf[#gblRecvBuf + 1] = e end
         end
     elseif unpacked:sub(1, 5) == "GL:E:" and gblRecvBuf then
+        if gblRecvFrom and senderName ~= gblRecvFrom then return end
         if senderName ~= MTR.playerName then
             local ok = true
             local ss = GBL_SyncState()
+            if (tonumber(gblRecvExpected) or 0) > 0 and #gblRecvBuf <= 0 then
+                ss.lastConflictAt = time()
+                ss.lastConflictFrom = tostring(senderName or "?")
+                ss.lastConflictReason = "incomplete-stream"
+                gblRecvBuf, gblRecvFrom, gblRecvRev, gblRecvHash, gblRecvExpected = nil, nil, nil, nil, nil
+                return
+            end
             ss.lastRevByPeer = ss.lastRevByPeer or {}
             local hashMismatch = false
             if gblRecvHash then
@@ -1970,8 +2037,10 @@ gblRecvFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
             end
         end
         gblRecvBuf = nil
+        gblRecvFrom = nil
         gblRecvRev = nil
         gblRecvHash = nil
+        gblRecvExpected = nil
     end
 end)
 

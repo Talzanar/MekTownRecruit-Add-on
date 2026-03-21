@@ -191,7 +191,7 @@ local function CreateMainWindow()
     -- Title text (left-anchored inside title bar)
     local titleText = mainWin:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     titleText:SetPoint("TOPLEFT", mainWin, "TOPLEFT", 10, -6)
-    titleText:SetText("|cffff2020MekTown|r |cffd4af37Recruit Control|r |cffaaaaaa v"..(MTR.VERSION or "2.0.0-beta").."|r")
+    titleText:SetText("|cffff2020MekTown|r |cffd4af37Recruit Control|r |cffaaaaaa v"..(MTR.VERSION or "2.1.1-pre").."|r")
 
     -- Close button (standard WoW X, top-right)
     local closeBtn = CreateFrame("Button", nil, mainWin, "UIPanelCloseButton")

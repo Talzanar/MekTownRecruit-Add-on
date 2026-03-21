@@ -453,6 +453,18 @@ function MTR.VerifyGuildEventChain()
     return { ok = true, checked = #log, brokenAt = 0, truncated = truncated }
 end
 
+local function ScrubStaleConflict(state, maxAge)
+    if type(state) ~= "table" then return state end
+    local ageLimit = tonumber(maxAge) or 300
+    local at = tonumber(state.lastConflictAt or 0) or 0
+    if at > 0 and (time() - at) > ageLimit then
+        state.lastConflictAt = nil
+        state.lastConflictFrom = nil
+        state.lastConflictReason = nil
+    end
+    return state
+end
+
 function MTR.GetSyncAuditStatus()
     local gs = MTR.GetGuildStore and MTR.GetGuildStore(false) or nil
     local out = {}
@@ -460,13 +472,13 @@ function MTR.GetSyncAuditStatus()
     local ev = MTR.VerifyGuildEventChain and MTR.VerifyGuildEventChain() or { ok = true, checked = 0 }
     out.guildKey = MTR.GetGuildKey and MTR.GetGuildKey(false) or "?"
     out.guildId = MTR.GetGuildId and MTR.GetGuildId(true) or nil
-    out.dkp = ss and ss.dkp or nil
-    out.recruit = ss and ss.recruit or nil
-    out.kick = ss and ss.kick or nil
-    out.inactivityWhitelist = ss and ss.inactivityWhitelist or nil
-    out.guildTree = ss and ss.guildTree or nil
-    out.guildBankSnapshot = ss and ss.guildBankSnapshot or nil
-    out.guildBankLedger = ss and ss.guildBankLedger or nil
+    out.dkp = ScrubStaleConflict(ss and ss.dkp or nil)
+    out.recruit = ScrubStaleConflict(ss and ss.recruit or nil)
+    out.kick = ScrubStaleConflict(ss and ss.kick or nil)
+    out.inactivityWhitelist = ScrubStaleConflict(ss and ss.inactivityWhitelist or nil)
+    out.guildTree = ScrubStaleConflict(ss and ss.guildTree or nil)
+    out.guildBankSnapshot = ScrubStaleConflict(ss and ss.guildBankSnapshot or nil)
+    out.guildBankLedger = ScrubStaleConflict(ss and ss.guildBankLedger or nil)
     out.event = ev
     return out
 end

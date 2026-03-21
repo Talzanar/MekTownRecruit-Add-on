@@ -112,6 +112,19 @@ local function GTApplySet(charName, mainName)
     if charName == "" or mainName == "" or charName == mainName then return end
     local ft = FT()
     if not ft then return end
+
+    local prev = ft[charName]
+    if prev and not prev.isMain and prev.main == mainName then
+        local alts = ft[mainName] and ft[mainName].alts or nil
+        if type(alts) == "table" then
+            for _, a in ipairs(alts) do
+                if a == charName then
+                    return false
+                end
+            end
+        end
+    end
+
     if not ft[mainName] then
         ft[mainName] = { isMain = true, alts = {} }
     end
@@ -134,6 +147,7 @@ local function GTApplySet(charName, mainName)
     end
     if MTR.AppendGuildEvent then MTR.AppendGuildEvent("guildTree", "setAlt", tostring(charName or "") .. "|" .. tostring(mainName or "")) end
     if not gtMuteTouch then GTTouch() end
+    return true
 end
 
 local function GTApplyMain(charName)
@@ -142,6 +156,9 @@ local function GTApplyMain(charName)
     local ft = FT()
     if not ft then return end
     local prev = ft[charName]
+    if prev and prev.isMain then
+        return false
+    end
     if prev and not prev.isMain and prev.main and ft[prev.main] then
         local pAlts = ft[prev.main].alts or {}
         for i = #pAlts, 1, -1 do
@@ -151,6 +168,7 @@ local function GTApplyMain(charName)
     ft[charName] = { isMain = true, alts = (prev and prev.alts) or {} }
     if MTR.AppendGuildEvent then MTR.AppendGuildEvent("guildTree", "setMain", tostring(charName or "")) end
     if not gtMuteTouch then GTTouch() end
+    return true
 end
 
 local function GTApplyDel(charName)
@@ -159,7 +177,7 @@ local function GTApplyDel(charName)
     local ft = FT()
     if not ft then return end
     local entry = ft[charName]
-    if not entry then return end
+    if not entry then return false end
     if entry.isMain and entry.alts then
         for _, alt in ipairs(entry.alts) do
             if ft[alt] then
@@ -178,6 +196,7 @@ local function GTApplyDel(charName)
     ft[charName] = nil
     if MTR.AppendGuildEvent then MTR.AppendGuildEvent("guildTree", "delete", tostring(charName or "")) end
     if not gtMuteTouch then GTTouch() end
+    return true
 end
 
 local function GTEncodeFull()
@@ -214,6 +233,26 @@ local function GTBuildChunks(payload)
     end
     if chunk ~= "" then chunks[#chunks + 1] = chunk end
     return chunks
+end
+
+local function GTNormalizePayload(payload)
+    local tokens, seen = {}, {}
+    for pair in tostring(payload or ""):gmatch("([^;]+)") do
+        local cn, mn = pair:match("^([^|]+)|(.+)$")
+        if cn and mn then
+            cn = CanonName(cn)
+            mn = CanonName(mn)
+            if cn ~= "" and mn ~= "" and cn ~= mn then
+                local tok = cn .. "|" .. mn
+                if not seen[tok] then
+                    seen[tok] = true
+                    tokens[#tokens + 1] = tok
+                end
+            end
+        end
+    end
+    table.sort(tokens)
+    return table.concat(tokens, ";")
 end
 
 local function GTApplyFull(payload)
@@ -394,8 +433,10 @@ local function ScanGuildNotes()
 
     local ft = FT()
     if not ft then return end
+    local beforeHash = (MTR.Hash and MTR.Hash(GTEncodeFull())) or "0"
 
     -- Ensure every visible guild member appears as a standalone main unless linked as an alt.
+    -- These placeholder main nodes are roster-derived and not part of the synced hash.
     EnsureGuildMemberEntries()
 
     local count = 0
@@ -415,20 +456,22 @@ local function ScanGuildNotes()
             end
             if mn and mn ~= shortName then
                 mn = CanonName(mn)
-                GTApplySet(shortName, mn)
-                count = count + 1
+                if GTApplySet(shortName, mn) then
+                    count = count + 1
+                end
             else
                 local existing = ft[shortName]
-                if existing and not existing.isMain then
-                    GTApplyMain(shortName)
-                elseif not existing then
+                if not existing then
                     ft[shortName] = { isMain = true, alts = {} }
                 end
             end
         end
     end
     gtMuteTouch = false
-    GTTouch()
+    local afterHash = (MTR.Hash and MTR.Hash(GTEncodeFull())) or "0"
+    if tostring(afterHash) ~= tostring(beforeHash) then
+        GTTouch()
+    end
     return count
 end
 
@@ -459,30 +502,72 @@ gtMsgFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         if MTR.isOfficer or MTR.isGM then
             local st = GTSyncState()
             local peerHash = payload ~= "" and payload or nil
+            if peerHash and peerHash == tostring(st.hash or "0") then
+                st.lastConflictReason = nil
+                st.lastConflictFrom = nil
+            end
             if not peerHash or peerHash ~= tostring(st.hash or "0") then
                 GTSendFull("peer-request")
             end
         end
     elseif cmd == "MET" then
         if not (MTR.IsGuildOfficerName and MTR.IsGuildOfficerName(senderName)) then return end
-        local rev, hash = payload:match("^(%d+):([^:]+):")
-        gtRecv = { rev = tonumber(rev) or 0, hash = hash or "0", chunks = {}, from = senderName }
+        local rev, hash, expected = payload:match("^(%d+):([^:]+):([^:]+)")
+        
+        -- Auto-clear conflict if header hash matches local hash
+        if hash then
+            local st = GTSyncState()
+            if tostring(hash) == tostring(st.hash or "0") then
+                st.lastConflictReason = nil
+                st.lastConflictFrom = nil
+                -- Adopt higher revision if hashes match
+                if rev and tonumber(rev) > tonumber(st.revision or 0) then
+                    st.revision = tonumber(rev)
+                end
+            end
+        end
+
+        gtRecv = { rev = tonumber(rev) or 0, hash = hash or "0", expected = tonumber(expected) or 0, chunks = {}, from = senderName }
     elseif cmd == "D" and gtRecv then
+        if senderName ~= gtRecv.from then return end
         if not (MTR.IsGuildOfficerName and MTR.IsGuildOfficerName(senderName)) then return end
         gtRecv.chunks[#gtRecv.chunks + 1] = payload
     elseif cmd == "END" and gtRecv then
+        if senderName ~= gtRecv.from then return end
         if not (MTR.IsGuildOfficerName and MTR.IsGuildOfficerName(senderName)) then return end
         local st = GTSyncState()
         local incomingRev = tonumber(gtRecv.rev) or 0
         local localRev = tonumber(st.revision or 0)
         if incomingRev >= localRev then
+            if (tonumber(gtRecv.expected) or 0) > 0 and #gtRecv.chunks <= 0 then
+                st.lastConflictAt = time()
+                st.lastConflictFrom = tostring(gtRecv.from or "?")
+                st.lastConflictReason = "incomplete-stream"
+                gtRecv = nil
+                return
+            end
             local raw = table.concat(gtRecv.chunks, ";")
+            local incomingHash = tostring(gtRecv.hash or "0")
             local h = (MTR.Hash and MTR.Hash(raw)) or "0"
-            if h == tostring(gtRecv.hash or "0") or #gtRecv.chunks == 0 then
+
+            -- Guild addon chunks can arrive out of order under heavy traffic.
+            -- Re-normalize by parsed tokens before declaring a mismatch.
+            if h ~= incomingHash and #gtRecv.chunks > 0 then
+                local normalized = GTNormalizePayload(raw)
+                local hNorm = (MTR.Hash and MTR.Hash(normalized)) or "0"
+                if hNorm == incomingHash then
+                    raw = normalized
+                    h = hNorm
+                end
+            end
+
+            if h == incomingHash or #gtRecv.chunks == 0 then
                 GTApplyFull(raw)
                 st.revision = incomingRev
                 st.hash = h
                 st.lastSyncAt = time()
+                st.lastConflictReason = nil
+                st.lastConflictFrom = nil
                 GTBroadcast(string.format("GT:ACK:%s:%s:%d", tostring(MTR.playerName or "?"), tostring(st.hash or "0"), tonumber(st.revision or 0)))
             else
                 st.lastConflictAt = time()
@@ -497,8 +582,10 @@ gtMsgFrame:SetScript("OnEvent", function(_, _, prefix, message, _, sender)
         local peer, hash, rev = payload:match("^([^:]+):([^:]+):([^:]+)$")
         local st = GTSyncState()
         if tostring(hash or "") == tostring(st.hash or "0") then
+            local r = tonumber(rev) or 0
+            if r > tonumber(st.revision or 0) then st.revision = r end
             st.lastAckByPeer = st.lastAckByPeer or {}
-            st.lastAckByPeer[peer or senderName or "?"] = { revision = tonumber(rev) or 0, at = time() }
+            st.lastAckByPeer[peer or senderName or "?"] = { revision = r, at = time() }
         end
     elseif cmd == "FULL" then
         if payload ~= "" then

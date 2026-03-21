@@ -16,7 +16,7 @@
 MekTownRecruit = MekTownRecruit or {}
 local MTR = MekTownRecruit
 
-MTR.VERSION = "2.0.0"
+MTR.VERSION = "2.1.1-pre"
 
 
 -- ============================================================================
