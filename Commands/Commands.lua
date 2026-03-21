@@ -14,6 +14,9 @@ initFrame:SetScript("OnEvent",function(self,event)
     if event ~= "PLAYER_LOGIN" then return end
 
     MTR.InitDB()
+    if type(MTR.db) ~= "table" then MTR.db = {} end
+    if type(MTR.db.keywords) ~= "table" then MTR.db.keywords = {} end
+    if type(MTR.db.whisperTemplates) ~= "table" then MTR.db.whisperTemplates = {} end
     MTR.playerName    = UnitName("player")
     MTR.initialized   = true
     MTR.recent        = {}
@@ -24,7 +27,7 @@ initFrame:SetScript("OnEvent",function(self,event)
     MTR.currentSession= nil
     MTR.inInstance    = false
 
-    if MTR.db.minimapButton then MTR.CreateMinimapButton() end
+    if MTR.db and MTR.db.minimapButton then MTR.CreateMinimapButton() end
 
     GuildRoster()
     MTR.After(4,function()

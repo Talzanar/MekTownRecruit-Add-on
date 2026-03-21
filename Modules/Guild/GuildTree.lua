@@ -735,20 +735,22 @@ local function InstallGuildTreePopupMenu()
         end,
     }
 
-    hooksecurefunc("UnitPopup_OnClick", function(self)
-        if not self or not self.value then return end
-        if self.value ~= "MTR_SET_MAIN" and self.value ~= "MTR_SET_ALT" then return end
-        local unit = self.unit
-        if (not unit) and UIDROPDOWNMENU_INIT_MENU then unit = UIDROPDOWNMENU_INIT_MENU.unit end
-        local name = unit and UnitName(unit)
-        if not name or name == "" then return end
-        name = name:match("^([^%-]+)") or name
-        if self.value == "MTR_SET_MAIN" then
-            MTR.GTSetMain(name)
-        else
-            StaticPopup_Show("MEKTOWN_GT_SET_ALT", name, nil, name)
-        end
-    end)
+    if type(hooksecurefunc) == "function" then
+        hooksecurefunc("UnitPopup_OnClick", function(self)
+            if not self or not self.value then return end
+            if self.value ~= "MTR_SET_MAIN" and self.value ~= "MTR_SET_ALT" then return end
+            local unit = self.unit
+            if (not unit) and UIDROPDOWNMENU_INIT_MENU then unit = UIDROPDOWNMENU_INIT_MENU.unit end
+            local name = unit and UnitName(unit)
+            if not name or name == "" then return end
+            name = name:match("^([^%-]+)") or name
+            if self.value == "MTR_SET_MAIN" then
+                MTR.GTSetMain(name)
+            else
+                StaticPopup_Show("MEKTOWN_GT_SET_ALT", name, nil, name)
+            end
+        end)
+    end
 end
 
 function MTR.BuildGuildTreeTab(t)

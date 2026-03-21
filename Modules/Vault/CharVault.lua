@@ -1474,6 +1474,15 @@ local function GBL_AgeTextToEpoch(ageText, baseEpoch)
     return tonumber(derived) or 0
 end
 
+-- Legacy compatibility shim. The old implementation scraped the visible guild
+-- bank log frame text. That scraper was removed during cleanup, but fallback
+-- callsites remain; keep a safe no-op so the module never hard-errors.
+local function GBL_ScrapeVisibleLogFrame(tab, entries, scanBy)
+    if not entries then return 0 end
+    GBL_Debug("Visible log scraper unavailable (noop) tab=" .. tostring(tab) .. " scanBy=" .. tostring(scanBy or "?"))
+    return 0
+end
+
 local function GBL_ReadTabTransactions(tab, entries, scanBy)
     local count = 0
     if GetNumGuildBankTransactions then
@@ -2021,15 +2030,25 @@ end
 -- Replacing GameTooltip methods directly can swallow the original return from
 -- SetInventoryItem, which causes the paper doll to fall back to slot names
 -- instead of showing the equipped item tooltip.
-hooksecurefunc(GameTooltip, "SetBagItem", function(self, bag, slot)
+local function SafeHookTooltip(methodName, fn)
+    if type(hooksecurefunc) ~= "function" then return end
+    if type(GameTooltip) ~= "table" then return end
+    if type(GameTooltip[methodName]) ~= "function" then return end
+    local ok = pcall(hooksecurefunc, GameTooltip, methodName, fn)
+    if not ok then
+        GBL_Debug("hooksecurefunc failed for GameTooltip:" .. tostring(methodName))
+    end
+end
+
+SafeHookTooltip("SetBagItem", function(self, bag, slot)
     AppendVaultLines(self, IDFromBagSlot(bag, slot))
 end)
 
-hooksecurefunc(GameTooltip, "SetInventoryItem", function(self, unit, slot)
+SafeHookTooltip("SetInventoryItem", function(self, unit, slot)
     AppendVaultLines(self, IDFromInventorySlot(unit, slot))
 end)
 
-hooksecurefunc(GameTooltip, "SetHyperlink", function(self, link)
+SafeHookTooltip("SetHyperlink", function(self, link)
     AppendVaultLines(self, ToItemID(link))
 end)
 
