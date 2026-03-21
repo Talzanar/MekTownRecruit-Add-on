@@ -1,179 +1,105 @@
 # MekTown Recruit
 
-Guild operations addon for **WoW 3.3.5a / Ascension (Classless)**.
+The official guild suite for MekTown Choppaz on WoW Ascension (Area 52), designed to make running a massive, active guild a bit easier for everyone.
 
-MekTown Recruit combines recruiting, DKP, attendance, guild bank history, group-finder tools, and officer sync workflows into one addon package.
+MekTown Recruit packs all our core guild operations—recruiting, DKP tracking, attendance, guild bank ledgers, and group-finder tools—into one unified addon. Instead of wrestling with a dozen different addons and Google Sheets, officers and members can see everything in one place.
 
 <img width="1024" height="1536" alt="MTR" src="https://github.com/user-attachments/assets/814b659b-cc70-4102-91fd-6709ab58a32b" />
 
-## Version
+## Addon Info
 
-- Addon version: `2.1.1-pre`
-- Interface: `30300`
-- SavedVariables: `MekTownRecruitDB`
+- **Current Version:** `2.1.1`
+- **Target Client:** `30300` (WoW 3.3.5a)
+- **SavedVariables:** `MekTownRecruitDB`
 
-## What This Addon Does
+## Features
 
-- Recruit scanner with keyword matching and invite support.
-- DKP ledger with award/deduct/set/publish/snapshot sync.
-- Attendance and boss-kill tracking.
-- Guild Tree (main/alt mapping) with sync.
-- Group Radar and LFG helper views for members.
-- Character Vault + Guild Bank snapshot.
-- Guild Bank Ledger with long retention (far beyond default bank log window).
-- Inactivity and kick tracking with whitelist sync.
-- Cross-officer sync audit and repair tools.
+- **Recruit Scanner:** Automatically spots and invites players looking for a guild based on keyword matching, with built-in welcome whispers.
+- **DKP System:** Full ledger for awarding, deducting, and syncing DKP. Includes an in-game auctioneer and roll tracker.
+- **Attendance Tracking:** Easily snapshot raid attendance and boss kills.
+- **Guild Tree:** Maps alts to mains so everyone knows who is who.
+- **Member Tools:** Group Radar and LFG helpers to make finding dungeon and raid groups painless.
+- **Character Vault & Guild Bank Ledger:** A persistent, searchable history of guild bank items and gold that goes way past Blizzard's short default log limit.
+- **Inactivity Management:** Tracks inactive players and syncs a safe whitelist across all officers.
+- **Peer-to-Peer Sync:** The addon silently syncs data (DKP, recruits, bank ledgers) between online officers to keep everyone's records identical.
 
-## Key Improvements In Current Build
+## Installation
 
-- Unified guild-scoped sync framework with revision/hash/ACK tracking.
-- Better stale snapshot handling and conflict damping.
-- Guild bank ledger dedupe hardened with transaction IDs.
-- Ledger sorting corrected to keep newest entries at top.
-- Ledger time model aligned to practical gameplay needs:
-  - Rough time for recent entries (within 24h).
-  - Day-based age style for older entries.
-- Adaptive debug routing:
-  - Per-module debug toggles.
-  - Optional chat output.
-  - Buffered logs for quiet testing.
+Since we're on a 3.3.5a client (Ascension), you install this exactly like any classic addon:
 
-## Installation (Ascension / WoW 3.3.5a)
+1. Close your game client.
+2. Download and drop the `MekTownRecruit` folder directly into your client's AddOns directory:
+   `World of Warcraft/Interface/AddOns/MekTownRecruit`
+3. Launch the game, click **AddOns** at the character select screen, and make sure **MekTown Recruit** is checked.
+4. Once in-game, type `/mek config` to open the main window.
 
-1. Close the game client.
-2. Copy the addon folder into your client addons directory:
-   - `World of Warcraft 3.3.5a/Interface/AddOns/MekTownRecruit`
-3. Start the game and open character selection.
-4. Click **AddOns** and verify **MekTown Recruit** is enabled.
-5. Enter game and run:
-   - `/mek help`
-   - `/mek config`
+## Getting Started
 
-## Quick Start
+1. **Check Settings:** Type `/mek config` and look through the options.
+2. **Verify Sync:** Type `/mek sync status` to ensure your addon is talking to other guild members.
+3. **Check the Vault:** Type `/mek chars` to view your character vault and the guild bank ledger.
+4. **Find a Group:** Type `/mek radar` or `/mek lfg` to open the member-facing group tools.
 
-1. Open settings: `/mek config`
-2. Validate guild identity: `/mtrid`
-3. Check sync baseline: `/mek sync status`
-4. Open member tools:
-   - `/mek radar`
-   - `/mek lfg`
-5. Open vault tools:
-   - `/mek chars`
-
-## Core Commands
+## Command Reference
 
 ### General
+- `/mek help` - Shows all available commands.
+- `/mek config` - Opens the main UI.
+- `/mek on` / `/mek off` - Toggles the main recruiting scanner.
+- `/mtrid` - Shows your current guild identity mapping.
 
-- `/mek help`
-- `/mek config`
-- `/mek on` / `/mek off`
-- `/mtrid`
+### DKP & Raiding
+- `/mek dkp standings` - View current DKP balances.
+- `/mek dkp balance <name>` - Check a specific player.
+- `/mek att start [zone]` - Begin attendance tracking.
+- `/mek att end` - End tracking.
 
-### Debug (adaptive)
+### Utilities
+- `/mek chars` - Open Character Vault.
+- `/mek radar` - Open Group Radar.
+- `/mek lfg` - Post LFG.
 
-- `/mek debug on|off`
-- `/mek debug chat on|off`
-- `/mek debug module <name> on|off`
-- `/mek debug status`
-- `/mek ledgerdebug on|off|show|clear`
-
-Suggested quiet ledger test mode:
-
-```text
-/mek debug on
-/mek debug chat off
-/mek debug module ledger on
-```
-
-### Sync Health
-
-- `/mek sync status`
-- `/mek sync verify`
-- `/mek sync repair [dkp|guildtree|recruit|kick|inactivewl|gbank|ledger|all]`
-
-### DKP
-
+### Officer Commands (Restricted)
 - `/mek dkp award <name> <points> [reason]`
 - `/mek dkp deduct <name> <points> [reason]`
 - `/mek dkp set <name> <points>` (GM only)
-- `/mek dkp balance <name>`
-- `/mek dkp standings`
-- `/mek dkp publish [channel]`
 - `/mek dkp snapshot`
-
-### Attendance
-
-- `/mek att start [zone]`
-- `/mek att boss <count>`
-- `/mek att check <name>`
-- `/mek att end`
-
-### Guild Utilities
-
 - `/mek inactive kick`
-- `/mek inactive whitelist add <name>`
-- `/mek inactive whitelist remove <name>`
-- `/mek chars`
-- `/mek radar`
-- `/mek lfg`
+- `/mek inactive whitelist add/remove <name>`
+- `/mek sync repair all` - Force a manual sync request to other officers.
 
-## Permissions Model
+## How Permissions Work
 
-Tabs are visible to all users, but actions are rank-gated.
+We built this so tabs are visible to everyone, but buttons that actually change guild data are restricted.
 
-- Officer/GM write actions:
-  - Recruit write flows
-  - DKP write flows
-  - Loot/auction administration
-  - Inactivity and kick actions
-- Member-facing actions:
-  - Group Radar
-  - Vault/member views
-  - Standings and utility reads
+**Officers & Guild Master:**
+Can use the Recruit scanner, modify DKP, run Loot/Auctions, perform inactivity kicks, and manually force sync repairs.
 
-## Guild Bank Ledger Behavior
+**Members:**
+Can view the Guild Tree, DKP Standings, Character Vault, Guild Bank Ledger, and use the Group Radar / LFG tools freely.
 
-- Keeps a persistent, synced ledger beyond Blizzard's short tab-history limit.
-- Deduplicates by internal transaction identity.
-- Maintains newest-first list ordering.
-- Uses practical timing presentation:
-  - Recent items: rough within-day time.
-  - Older items: day-based age text.
+## The Guild Bank Ledger
 
-Note: Blizzard's legacy 3.3.5 API does not always provide exact absolute timestamps for every row. The addon uses best-available information and synchronized canonical timing to keep officer clients consistent.
+Because the default 3.3.5 bank log is notoriously short and easily wiped, our addon keeps a permanent, synced ledger of both items and gold. 
 
-## Project Layout
+- It deduplicates transactions automatically so multiple officers scanning doesn't create duplicate entries.
+- It displays exact dates when the game provides them, and smartly calculates "days ago" when it doesn't.
+- Gold logs are tracked natively, with a fallback that watches the bank balance directly if the realm's money API bugs out.
 
-- `Core.lua` - shared runtime, db/profile helpers, debug controls.
-- `GuildData.lua` - shared guild-scoped sync envelope helpers.
-- `DKP.lua` - DKP balances/history/sync.
-- `Recruit.lua` - recruit logging/sync.
-- `Inactivity.lua` - inactivity tools + whitelist sync.
-- `GuildTree.lua` - main/alt model + sync.
-- `CharVault.lua` - vault snapshot + guild bank ledger/sync.
-- `UI_Config.lua` / `UI_Member.lua` / `UI_CharVault.lua` - main UI.
-- `Commands.lua` - slash command handlers.
+## Under the Hood
 
-## Compatibility
+The codebase is built strictly for the 3.3.5a engine limits. We don't use retail `C_Timer` mixins, and all heavy sync operations are chunked to respect legacy 255-byte chat limits.
 
-- Target client: WoW 3.3.5a
-- Lua: 5.1
-- Frame API: classic FrameXML / `CreateFrame`
-- Ascension classless friendly (no retail-only APIs)
-
-## QA Recommendations Before Release
-
-- Use at least 2-3 guild clients (GM/officer/member).
-- Run `/mek sync status` on each client after DKP, recruit, kick, and ledger activity.
-- Validate guild bank ledger ordering after a fresh scan.
-- Validate role-gated actions from a member account.
-
-See also:
-
-- `LAUNCHER_RELEASE_CHECKLIST.md`
-- `RELEASE_NOTES_2.1.1_PRERELEASE.md`
+```text
+MekTownRecruit/
+├── Core/         (Init, settings, guild identity)
+├── UI/           (Windows, buttons, tooltips)
+├── Modules/      (DKP, Vault, Recruit, Guild, Social)
+└── Commands/     (Slash router)
+```
 
 ## Credits
 
-- MekTown Choppaz guild officers and testers.
-- Ascension-focused UI and sync hardening contributors.
+Massive thanks to the MekTown Choppaz guild officers and testers for breaking this repeatedly until it worked, and to the Ascension UI dev community for the 3.3.5a workarounds.
+
+*FOR GORK N MORK!*

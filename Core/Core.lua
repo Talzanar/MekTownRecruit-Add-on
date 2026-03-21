@@ -16,7 +16,7 @@
 MekTownRecruit = MekTownRecruit or {}
 local MTR = MekTownRecruit
 
-MTR.VERSION = "2.1.1-pre"
+MTR.VERSION = "2.1.1"
 
 MTR.MEKTOWN_GUILD_ID = "gid-d63714241d0efc00"
 MTR.MEKTOWN_GUILD_NAME = "Mektown Choppaz"
